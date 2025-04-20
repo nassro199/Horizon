@@ -7,44 +7,16 @@
 #include <horizon/kernel.h>
 #include <horizon/types.h>
 #include <horizon/string.h>
+#include <horizon/console.h>
+#include <horizon/multiboot.h>
+#include <horizon/mm/early.h>
+#include <horizon/acpi.h>
+#include <horizon/boot.h>
 
 /* Define NULL if not defined */
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
-
-/* Multiboot header structure */
-typedef struct multiboot_info {
-    u32 flags;                  /* Multiboot info flags */
-    u32 mem_lower;              /* Amount of lower memory */
-    u32 mem_upper;              /* Amount of upper memory */
-    u32 boot_device;            /* Boot device */
-    u32 cmdline;                /* Command line */
-    u32 mods_count;             /* Number of modules */
-    u32 mods_addr;              /* Module address */
-    u32 syms[4];                /* Symbol table info */
-    u32 mmap_length;            /* Memory map length */
-    u32 mmap_addr;              /* Memory map address */
-    u32 drives_length;          /* Drives info length */
-    u32 drives_addr;            /* Drives info address */
-    u32 config_table;           /* Configuration table */
-    u32 boot_loader_name;       /* Boot loader name */
-    u32 apm_table;              /* APM table */
-    u32 vbe_control_info;       /* VBE control info */
-    u32 vbe_mode_info;          /* VBE mode info */
-    u16 vbe_mode;               /* VBE mode */
-    u16 vbe_interface_seg;      /* VBE interface segment */
-    u16 vbe_interface_off;      /* VBE interface offset */
-    u16 vbe_interface_len;      /* VBE interface length */
-} multiboot_info_t;
-
-/* Memory map entry structure */
-typedef struct memory_map {
-    u32 size;                   /* Size of this entry */
-    u64 base_addr;              /* Base address */
-    u64 length;                 /* Region length */
-    u32 type;                   /* Region type */
-} __attribute__((packed)) memory_map_t;
 
 /* External functions */
 extern void arch_setup(void);
@@ -55,142 +27,99 @@ extern void keyboard_handler_init(void);
 extern void shell_init(void);
 extern void capability_init(void);
 extern void uhci_driver_init(void);
-
-/* Global variables */
-static multiboot_info_t *multiboot_info = NULL;
-static u32 total_memory = 0;
-
-/* Early console print function */
-static void early_print(const char *str) {
-    /* This assumes VGA text mode is already set up by the bootloader */
-    static u16 *vga_buffer = (u16 *)0xB8000;
-    static u32 pos = 0;
-
-    for (u32 i = 0; str[i] != '\0'; i++) {
-        if (str[i] == '\n') {
-            /* Move to the next line */
-            pos = (pos / 80 + 1) * 80;
-        } else {
-            /* Print the character */
-            vga_buffer[pos++] = (u16)str[i] | 0x0700;
-        }
-
-        /* Handle scrolling */
-        if (pos >= 80 * 25) {
-            /* Move everything up one line */
-            for (u32 j = 0; j < 80 * 24; j++) {
-                vga_buffer[j] = vga_buffer[j + 80];
-            }
-
-            /* Clear the last line */
-            for (u32 j = 80 * 24; j < 80 * 25; j++) {
-                vga_buffer[j] = 0x0720; /* Space with white on black */
-            }
-
-            /* Adjust position */
-            pos = 80 * 24;
-        }
-    }
-}
-
-/* Parse the multiboot information */
-static void parse_multiboot_info(multiboot_info_t *mbi) {
-    /* Store the multiboot info pointer */
-    multiboot_info = mbi;
-
-    /* Print multiboot info */
-    early_print("Multiboot information:\n");
-
-    /* Check memory info */
-    if (mbi->flags & 0x1) {
-        early_print("Memory: Lower = ");
-        /* Convert to string and print */
-        char buf[16];
-        u32 val = mbi->mem_lower;
-        u32 pos = 0;
-        do {
-            buf[pos++] = '0' + (val % 10);
-            val /= 10;
-        } while (val > 0);
-        for (u32 i = 0; i < pos; i++) {
-            char c[2] = { buf[pos - i - 1], '\0' };
-            early_print(c);
-        }
-        early_print(" KB, Upper = ");
-
-        val = mbi->mem_upper;
-        pos = 0;
-        do {
-            buf[pos++] = '0' + (val % 10);
-            val /= 10;
-        } while (val > 0);
-        for (u32 i = 0; i < pos; i++) {
-            char c[2] = { buf[pos - i - 1], '\0' };
-            early_print(c);
-        }
-        early_print(" KB\n");
-
-        /* Calculate total memory */
-        total_memory = mbi->mem_lower + mbi->mem_upper;
-    }
-
-    /* Check memory map */
-    if (mbi->flags & 0x40) {
-        early_print("Memory map available\n");
-
-        /* Parse memory map */
-        memory_map_t *mmap = (memory_map_t *)mbi->mmap_addr;
-        while ((u32)mmap < mbi->mmap_addr + mbi->mmap_length) {
-            /* Process memory map entry */
-            if (mmap->type == 1) {
-                /* Available memory */
-                /* This would be used to initialize the physical memory manager */
-            }
-
-            /* Move to the next entry */
-            mmap = (memory_map_t *)((u32)mmap + mmap->size + 4);
-        }
-    }
-}
-
-/* External functions */
 extern void kernel_init(void);
 
 /* Kernel main entry point */
 void kernel_main(u32 magic, multiboot_info_t *mbi) {
+    /* Initialize early console */
+    early_console_init();
+
+    /* Initialize boot process */
+    boot_init();
+
     /* Check multiboot magic number */
     if (magic != 0x2BADB002) {
-        /* Invalid magic number, halt the system */
-        for (;;) {
-            __asm__ volatile("hlt");
-        }
+        boot_error("Invalid multiboot magic number");
+        kernel_panic("Invalid multiboot magic number");
     }
 
-    /* Parse multiboot information */
-    parse_multiboot_info(mbi);
+    /* Initialize multiboot */
+    boot_message("Initializing multiboot...");
+    multiboot_init(magic, mbi);
+    multiboot_print_info();
+    boot_set_stage(BOOT_STAGE_MEMORY);
+
+    /* Initialize early memory management */
+    boot_message("Initializing early memory management...");
+    early_mm_init();
+    multiboot_parse_mmap();
+    boot_progress(20);
 
     /* Architecture-specific setup */
-    early_print("Initializing architecture-specific features...\n");
+    boot_message("Initializing architecture-specific features...");
     arch_setup();
+    boot_progress(30);
+
+    /* Initialize ACPI */
+    boot_set_stage(BOOT_STAGE_ACPI);
+    boot_message("Initializing ACPI...");
+    acpi_init();
+    boot_progress(40);
 
     /* Initialize interrupts */
-    early_print("Initializing interrupt system...\n");
+    boot_set_stage(BOOT_STAGE_INTERRUPTS);
+    boot_message("Initializing interrupt system...");
     interrupt_init();
+    boot_progress(50);
 
     /* Initialize the VGA console */
-    early_print("Initializing VGA console...\n");
+    boot_set_stage(BOOT_STAGE_CONSOLE);
+    boot_message("Initializing VGA console...");
     vga_init();
+    boot_progress(60);
+
+    /* Initialize the timer */
+    boot_set_stage(BOOT_STAGE_TIMER);
+    boot_message("Initializing timer...");
+    /* TODO: Initialize timer */
+    boot_progress(70);
+
+    /* Initialize the scheduler */
+    boot_set_stage(BOOT_STAGE_SCHEDULER);
+    boot_message("Initializing scheduler...");
+    /* TODO: Initialize scheduler */
+    boot_progress(80);
 
     /* Initialize the kernel */
-    early_print("Initializing Horizon kernel subsystems...\n");
+    boot_set_stage(BOOT_STAGE_DRIVERS);
+    boot_message("Initializing Horizon kernel subsystems...");
     kernel_init();
+    boot_progress(90);
 
     /* Enable interrupts */
-    early_print("Enabling interrupts...\n");
+    boot_message("Enabling interrupts...");
     __asm__ volatile("sti");
 
-    early_print("Horizon kernel initialization complete.\n");
-    early_print("Welcome to Horizon OS!\n");
+    /* Boot complete */
+    boot_set_stage(BOOT_STAGE_COMPLETE);
+    boot_message("Horizon kernel initialization complete.");
+    boot_print_time();
+    boot_progress(100);
+
+    /* Show welcome message */
+    console_clear();
+    console_write_color("\n", CONSOLE_WHITE, CONSOLE_BLACK);
+    console_write_color("  _    _            _                   ____   _____ \n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color(" | |  | |          (_)                 / __ \\ / ____|\n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color(" | |__| | ___  _ __ _ _______  _ __   | |  | | (___  \n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color(" |  __  |/ _ \\| '__| |_  / _ \\| '_ \\  | |  | |\\___ \\ \n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color(" | |  | | (_) | |  | |/ / (_) | | | | | |__| |____) |\n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color(" |_|  |_|\\___/|_|  |_/___\\___/|_| |_|  \\____/|_____/ \n", CONSOLE_LIGHT_CYAN, CONSOLE_BLACK);
+    console_write_color("\n", CONSOLE_WHITE, CONSOLE_BLACK);
+    console_write_color("                   Horizon OS v0.1                   \n", CONSOLE_YELLOW, CONSOLE_BLACK);
+    console_write_color("\n", CONSOLE_WHITE, CONSOLE_BLACK);
+    console_write_color("Welcome to Horizon OS!\n", CONSOLE_LIGHT_GREEN, CONSOLE_BLACK);
+    console_write_color("\n", CONSOLE_WHITE, CONSOLE_BLACK);
 
     /* Main loop */
     for (;;) {
