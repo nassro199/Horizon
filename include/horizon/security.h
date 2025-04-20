@@ -1,11 +1,11 @@
 /**
  * security.h - Security subsystem definitions
- * 
+ *
  * This file contains definitions for the security subsystem.
  */
 
-#ifndef _KERNEL_SECURITY_H
-#define _KERNEL_SECURITY_H
+#ifndef _HORIZON_SECURITY_H
+#define _HORIZON_SECURITY_H
 
 #include <horizon/types.h>
 
@@ -95,6 +95,17 @@ typedef struct security_ops {
     int (*file_chown)(struct security_context *context, const char *path, u32 uid, u32 gid);
     int (*file_chmod)(struct security_context *context, const char *path, u32 mode);
     int (*ipc_permission)(struct security_context *context, u32 key, u32 mask);
+    int (*path_truncate)(const struct path *path);
+    int (*path_mknod)(const struct path *dir, struct dentry *dentry, umode_t mode, unsigned int dev);
+    int (*path_mkdir)(const struct path *dir, struct dentry *dentry, umode_t mode);
+    int (*path_rmdir)(const struct path *dir, struct dentry *dentry);
+    int (*path_unlink)(const struct path *dir, struct dentry *dentry);
+    int (*path_symlink)(const struct path *dir, struct dentry *dentry, const char *old_name);
+    int (*path_link)(struct dentry *old_dentry, const struct path *new_dir, struct dentry *new_dentry);
+    int (*path_rename)(const struct path *old_dir, struct dentry *old_dentry, const struct path *new_dir, struct dentry *new_dentry, unsigned int flags);
+    int (*path_chmod)(const struct path *path, umode_t mode);
+    int (*path_chown)(const struct path *path, uid_t uid, gid_t gid);
+    int (*path_chroot)(const struct path *path);
 } security_ops_t;
 
 /* Security module structure */
@@ -125,5 +136,18 @@ void security_acl_free(acl_t *acl);
 int security_acl_add_entry(acl_t *acl, u32 tag, u32 id, u32 perm);
 int security_acl_remove_entry(acl_t *acl, u32 tag, u32 id);
 int security_acl_check(acl_t *acl, security_context_t *context, u32 mask);
+
+/* Path security functions */
+int security_path_truncate(const struct path *path);
+int security_path_mknod(const struct path *dir, struct dentry *dentry, umode_t mode, unsigned int dev);
+int security_path_mkdir(const struct path *dir, struct dentry *dentry, umode_t mode);
+int security_path_rmdir(const struct path *dir, struct dentry *dentry);
+int security_path_unlink(const struct path *dir, struct dentry *dentry);
+int security_path_symlink(const struct path *dir, struct dentry *dentry, const char *old_name);
+int security_path_link(struct dentry *old_dentry, const struct path *new_dir, struct dentry *new_dentry);
+int security_path_rename(const struct path *old_dir, struct dentry *old_dentry, const struct path *new_dir, struct dentry *new_dentry, unsigned int flags);
+int security_path_chmod(const struct path *path, umode_t mode);
+int security_path_chown(const struct path *path, uid_t uid, gid_t gid);
+int security_path_chroot(const struct path *path);
 
 #endif /* _KERNEL_SECURITY_H */

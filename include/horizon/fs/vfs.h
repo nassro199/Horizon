@@ -1,6 +1,6 @@
 /**
  * vfs.h - Horizon kernel Virtual File System definitions
- * 
+ *
  * This file contains definitions for the Virtual File System (VFS) layer.
  * The definitions are compatible with Linux.
  */
@@ -198,8 +198,12 @@ int vfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *new_de
 int vfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev);
 int vfs_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool want_excl);
 int vfs_truncate(struct path *path, loff_t length);
+int vfs_create_file(const char *pathname, mode_t mode, struct path *path);
+int vfs_permission(const struct path *path, int mode);
+struct dentry *vfs_create_dentry(struct dentry *parent, const char *name);
+void vfs_free_dentry(struct dentry *dentry);
+int vfs_d_path(const struct path *path, char *buf, int buflen);
 int vfs_fallocate(struct file *filp, int mode, loff_t offset, loff_t len);
-int vfs_permission(struct inode *inode, int mask);
 int vfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask, unsigned int flags);
 int vfs_setattr(struct dentry *dentry, struct iattr *attr);
 int vfs_statfs(struct dentry *dentry, struct kstatfs *buf);

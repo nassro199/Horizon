@@ -1,6 +1,6 @@
 /**
  * interrupt.h - Horizon kernel interrupt handling definitions
- * 
+ *
  * This file contains definitions for the interrupt handling subsystem.
  * The definitions are compatible with Linux.
  */
@@ -44,6 +44,14 @@
 #define IRQ_TYPE_LEVEL_HIGH     4  /* High level triggered */
 #define IRQ_TYPE_LEVEL_LOW      5  /* Low level triggered */
 
+/* Interrupt priority levels */
+#define INT_PRIO_HIGHEST        0  /* Highest priority */
+#define INT_PRIO_HIGH           1  /* High priority */
+#define INT_PRIO_NORMAL         2  /* Normal priority */
+#define INT_PRIO_LOW            3  /* Low priority */
+#define INT_PRIO_LOWEST         4  /* Lowest priority */
+#define INT_PRIO_DEFAULT        INT_PRIO_NORMAL  /* Default priority */
+
 /* Interrupt frame */
 typedef struct interrupt_frame {
     unsigned long ip;              /* Instruction pointer */
@@ -84,6 +92,7 @@ typedef struct interrupt_desc {
     unsigned int irq;              /* IRQ number */
     unsigned int status;           /* IRQ status */
     unsigned int depth;            /* Disable depth */
+    unsigned int priority;         /* Interrupt priority */
     unsigned int handler_count;    /* Handler count */
     struct interrupt_handler *handlers;  /* Handlers */
     struct interrupt_controller *controller;  /* Controller */
@@ -98,6 +107,8 @@ int interrupt_unregister_controller(struct interrupt_controller *controller);
 int interrupt_enable(unsigned int irq);
 int interrupt_disable(unsigned int irq);
 int interrupt_set_type(unsigned int irq, unsigned int flow_type);
+int interrupt_set_priority(unsigned int irq, unsigned int priority);
+unsigned int interrupt_get_priority(unsigned int irq);
 int interrupt_set_affinity(unsigned int irq, const struct cpumask *dest);
 void interrupt_handle(unsigned int irq, struct interrupt_frame *frame);
 void interrupt_dispatch(struct interrupt_frame *frame);
@@ -107,6 +118,8 @@ void interrupt_enable_all(void);
 void interrupt_disable_all(void);
 void interrupt_save_flags(unsigned long *flags);
 void interrupt_restore_flags(unsigned long flags);
+int interrupt_defer_work(void (*func)(void *data), void *data);
+void check_deferred_work(void);
 
 /* Interrupt service routine */
 #define ISR(irq) void isr_##irq(struct interrupt_frame *frame)

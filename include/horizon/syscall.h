@@ -292,6 +292,7 @@
 #define SYS_MQ_GETSETATTR       282
 #define SYS_KEXEC_LOAD          283
 #define SYS_WAITID              284
+#define SYS_OPENAT              295
 #define SYS_SOCKET              359
 #define SYS_BIND                361
 #define SYS_CONNECT             362

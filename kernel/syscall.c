@@ -15,6 +15,26 @@
 #include <horizon/time.h>
 #include <horizon/net.h>
 #include <horizon/string.h>
+#include <horizon/task.h>
+#include <horizon/errno.h>
+
+/* Define NULL if not defined */
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
+
+/* Define error codes if not defined */
+#ifndef EBADF
+#define EBADF 9       /* Bad file descriptor */
+#endif
+
+#ifndef EINVAL
+#define EINVAL 22     /* Invalid argument */
+#endif
+
+#ifndef ENOSYS
+#define ENOSYS 38     /* Function not implemented */
+#endif
 
 /* System call table */
 syscall_handler_t syscall_table[MAX_SYSCALLS];
@@ -32,7 +52,7 @@ static long sys_read(long fd, long buffer, long size, long arg4, long arg5, long
     /* Get the file from the file descriptor */
     struct file *file = current->files->fd_array[fd];
     if (file == NULL) {
-        return ERROR_BADF;
+        return -EBADF;
     }
 
     /* Read from the file */
@@ -44,53 +64,33 @@ static long sys_write(long fd, long buffer, long size, long arg4, long arg5, lon
     /* Get the file from the file descriptor */
     struct file *file = current->files->fd_array[fd];
     if (file == NULL) {
-        return ERROR_BADF;
+        return -EBADF;
     }
 
     /* Write to the file */
     return vfs_write(file, (const char *)buffer, size, &file->f_pos);
 }
 
-/* Open system call */
-static long sys_open(long path, long flags, long mode, long arg4, long arg5, long arg6) {
-    /* Open the file */
-    struct file *file;
-    int error = vfs_open((const char *)path, &file, flags, mode);
-    if (error) {
-        return error;
-    }
+/* Open system call - defined in kernel/fs/open.c */
+extern long sys_open(long pathname, long flags, long mode, long unused1, long unused2, long unused3);
 
-    /* Find a free file descriptor */
-    int fd;
-    for (fd = 0; fd < current->files->max_fds; fd++) {
-        if (current->files->fd_array[fd] == NULL) {
-            break;
-        }
-    }
+/* Openat system call - defined in kernel/fs/open.c */
+extern long sys_openat(long dirfd, long pathname, long flags, long mode, long unused1, long unused2);
 
-    /* Check if we found a free file descriptor */
-    if (fd >= current->files->max_fds) {
-        vfs_close(file);
-        return ERROR_MFILE;
-    }
-
-    /* Set the file descriptor */
-    current->files->fd_array[fd] = file;
-
-    return fd;
-}
+/* Creat system call - defined in kernel/fs/open.c */
+extern long sys_creat(long pathname, long mode, long unused1, long unused2, long unused3, long unused4);
 
 /* Close system call */
 static long sys_close(long fd, long arg2, long arg3, long arg4, long arg5, long arg6) {
     /* Check if the file descriptor is valid */
     if (fd < 0 || fd >= current->files->max_fds) {
-        return ERROR_BADF;
+        return -EBADF;
     }
 
     /* Get the file from the file descriptor */
     struct file *file = current->files->fd_array[fd];
     if (file == NULL) {
-        return ERROR_BADF;
+        return -EBADF;
     }
 
     /* Close the file */
@@ -150,10 +150,9 @@ static long sys_mmap(long addr, long length, long prot, long flags, long fd, lon
     }
 
     /* Map the memory */
-    void *mapped_addr;
-    int error = vmm_mmap(current->mm, (void *)addr, length, prot, flags, file, offset, &mapped_addr);
-    if (error) {
-        return error;
+    void *mapped_addr = vmm_mmap(current->mm, (void *)addr, length, prot, flags, file, offset);
+    if (mapped_addr == NULL) {
+        return -ENOMEM;
     }
 
     return (long)mapped_addr;
@@ -243,6 +242,8 @@ void syscall_init(void) {
     syscall_register(SYS_WAIT4, sys_wait4);
     syscall_register(SYS_GETPID, sys_getpid);
     syscall_register(SYS_GETPPID, sys_getppid);
+
+    /* TODO: Implement these system calls
     syscall_register(SYS_GETPGID, sys_getpgid);
     syscall_register(SYS_SETPGID, sys_setpgid);
     syscall_register(SYS_GETPGRP, sys_getpgrp);
@@ -270,11 +271,14 @@ void syscall_init(void) {
     syscall_register(SYS_SET_THREAD_AREA, sys_set_thread_area);
     syscall_register(SYS_GET_THREAD_AREA, sys_get_thread_area);
     syscall_register(SYS_WAITID, sys_waitid);
+    */
 
     /* Register file-related system calls */
     syscall_register(SYS_READ, sys_read);
     syscall_register(SYS_WRITE, sys_write);
     syscall_register(SYS_OPEN, sys_open);
+    syscall_register(SYS_OPENAT, sys_openat);
+    syscall_register(SYS_CREAT, sys_creat);
     syscall_register(SYS_CLOSE, sys_close);
 
     /* Register memory-related system calls */
@@ -335,7 +339,7 @@ long syscall_handler(u32 num, long arg1, long arg2, long arg3, long arg4, long a
 
     /* Check if the handler is valid */
     if (handler == NULL) {
-        return ERROR_NOSYS;
+        return -ENOSYS;
     }
 
     /* Call the handler */

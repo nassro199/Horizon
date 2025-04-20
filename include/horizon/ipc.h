@@ -1,6 +1,6 @@
 /**
  * ipc.h - Inter-Process Communication definitions
- * 
+ *
  * This file contains definitions for the inter-process communication subsystem.
  */
 
@@ -84,5 +84,20 @@ int shmget(u32 key, size_t size, int shmflg);
 void *shmat(int shmid, const void *shmaddr, int shmflg);
 int shmdt(const void *shmaddr);
 int shmctl(int shmid, int cmd, void *buf);
+
+/* POSIX message queue functions */
+int mqueue_open(const char *name, int oflag, mode_t mode, struct mq_attr *attr);
+int mqueue_close(int mqdes);
+int mqueue_unlink(const char *name);
+int mqueue_send(int mqdes, const char *msg_ptr, size_t msg_len, unsigned int msg_prio);
+ssize_t mqueue_receive(int mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg_prio);
+int mqueue_getattr(int mqdes, struct mq_attr *attr);
+int mqueue_setattr(int mqdes, const struct mq_attr *attr, struct mq_attr *oattr);
+int mqueue_notify(int mqdes, const struct sigevent *sevp);
+int mqueue_timedsend(int mqdes, const char *msg_ptr, size_t msg_len, unsigned int msg_prio, const struct timespec *abs_timeout);
+ssize_t mqueue_timedreceive(int mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg_prio, const struct timespec *abs_timeout);
+
+/* Socket pair functions */
+int socketpair_create(int domain, int type, int protocol, int sv[2]);
 
 #endif /* _KERNEL_IPC_H */

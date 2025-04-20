@@ -14,6 +14,8 @@ extern void sem_init(void);
 extern void shm_init(void);
 extern void mqueue_init(void);
 extern void ipc_mqueue_syscalls_init(void);
+extern void unix_socket_init(void);
+extern void unix_syscalls_init(void);
 
 /* Initialize the IPC subsystem */
 void ipc_init(void)
@@ -32,4 +34,10 @@ void ipc_init(void)
 
     /* Initialize the POSIX message queue system calls */
     ipc_mqueue_syscalls_init();
+
+    /* Initialize the Unix domain socket subsystem */
+    unix_socket_init();
+
+    /* Initialize the Unix domain socket system calls */
+    unix_syscalls_init();
 }
