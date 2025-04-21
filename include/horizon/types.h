@@ -8,9 +8,7 @@
 #define _TYPES_H
 
 /* NULL definition */
-#ifndef NULL
 #define NULL ((void *)0)
-#endif
 
 /* Basic types */
 typedef unsigned char      u8;
