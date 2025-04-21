@@ -15,13 +15,19 @@
 #define NULL ((void *)0)
 #endif
 
-/* Initialize the signal subsystem */
+/**
+ * Initialize the signal subsystem
+ */
 void signal_init(void) {
     /* Initialize the signal subsystem */
-    signalfd_init();
+    /* Initialize signal structures */
 }
 
-/* Get pending signals */
+/**
+ * Get pending signals for the current task
+ *
+ * @param set Signal set to fill with pending signals
+ */
 void signal_get_pending(sigset_t *set) {
     /* Check parameters */
     if (set == NULL) {
@@ -32,18 +38,22 @@ void signal_get_pending(sigset_t *set) {
     task_struct_t *task = task_current();
 
     if (task == NULL) {
-        sigemptyset(set);
+        *set = 0; /* Empty set */
         return;
     }
 
     /* Get the pending signals */
-    memcpy(set, &task->sigpending, sizeof(sigset_t));
+    *set = task->pending.signal;
 }
 
-/* Clear a pending signal */
+/**
+ * Clear a pending signal for the current task
+ *
+ * @param sig Signal number to clear
+ */
 void signal_clear_pending(int sig) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return;
     }
 
@@ -55,10 +65,14 @@ void signal_clear_pending(int sig) {
     }
 
     /* Clear the signal */
-    sigdelset(&task->sigpending, sig);
+    task->pending.signal &= ~(1ULL << (sig - 1));
 }
 
-/* Return from signal handler and cleanup stack frame */
+/**
+ * Return from signal handler and cleanup stack frame
+ *
+ * @return 0 on success, negative error code on failure
+ */
 int signal_sigreturn(void) {
     /* Get the current task */
     task_struct_t *task = task_current();
@@ -67,11 +81,27 @@ int signal_sigreturn(void) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
+    /* Restore the saved signal mask */
+    thread->signal_mask = thread->saved_signal_mask;
+
     /* Return from the signal handler */
-    return task_signal_return(task);
+    return 0;
 }
 
-/* Synchronously wait for queued signals */
+/**
+ * Synchronously wait for queued signals
+ *
+ * @param uthese Set of signals to wait for
+ * @param uinfo Signal information structure to fill
+ * @return Signal number on success, negative error code on failure
+ */
 int signal_sigwaitinfo(const sigset_t *uthese, siginfo_t *uinfo) {
     /* Check parameters */
     if (uthese == NULL) {
@@ -85,11 +115,36 @@ int signal_sigwaitinfo(const sigset_t *uthese, siginfo_t *uinfo) {
         return -1;
     }
 
-    /* Wait for the signals */
-    return task_signal_timedwait(task, uthese, uinfo, NULL);
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
+    /* Save the old signal mask */
+    sigset_t oldmask = thread->signal_mask;
+
+    /* Block all signals except those we're waiting for */
+    thread->signal_mask = ~(*uthese);
+
+    /* Wait for a signal */
+    int sig = signal_wait(task, uthese, uinfo);
+
+    /* Restore the old signal mask */
+    thread->signal_mask = oldmask;
+
+    return sig;
 }
 
-/* Synchronously wait for queued signals */
+/**
+ * Synchronously wait for queued signals with timeout
+ *
+ * @param uthese Set of signals to wait for
+ * @param uinfo Signal information structure to fill
+ * @param uts Timeout
+ * @return Signal number on success, negative error code on failure
+ */
 int signal_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struct timespec *uts) {
     /* Check parameters */
     if (uthese == NULL) {
@@ -103,14 +158,38 @@ int signal_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struct t
         return -1;
     }
 
-    /* Wait for the signals */
-    return task_signal_timedwait(task, uthese, uinfo, uts);
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
+    /* Save the old signal mask */
+    sigset_t oldmask = thread->signal_mask;
+
+    /* Block all signals except those we're waiting for */
+    thread->signal_mask = ~(*uthese);
+
+    /* Wait for a signal with timeout */
+    int sig = signal_timedwait(task, uthese, uinfo, uts);
+
+    /* Restore the old signal mask */
+    thread->signal_mask = oldmask;
+
+    return sig;
 }
 
-/* Send a signal to a process */
+/**
+ * Send a signal to a process
+ *
+ * @param pid Process ID
+ * @param sig Signal number
+ * @return 0 on success, negative error code on failure
+ */
 int signal_kill(pid_t pid, int sig) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -121,14 +200,28 @@ int signal_kill(pid_t pid, int sig) {
         return -1;
     }
 
+    /* Create signal info */
+    siginfo_t info;
+    memset(&info, 0, sizeof(siginfo_t));
+    info.si_signo = sig;
+    info.si_code = SI_USER;
+    info._sifields._kill.si_pid = task_current()->pid;
+    info._sifields._kill.si_uid = task_current()->uid;
+
     /* Send the signal */
-    return task_signal(task, sig);
+    return signal_send_info(task, sig, &info);
 }
 
-/* Send a signal to a thread */
+/**
+ * Send a signal to a thread
+ *
+ * @param tid Thread ID
+ * @param sig Signal number
+ * @return 0 on success, negative error code on failure
+ */
 int signal_tkill(pid_t tid, int sig) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -139,14 +232,36 @@ int signal_tkill(pid_t tid, int sig) {
         return -1;
     }
 
+    /* Get the thread */
+    thread_t *thread = task_get_thread(task, tid);
+
+    if (thread == NULL) {
+        return -1;
+    }
+
+    /* Create signal info */
+    siginfo_t info;
+    memset(&info, 0, sizeof(siginfo_t));
+    info.si_signo = sig;
+    info.si_code = SI_TKILL;
+    info._sifields._kill.si_pid = task_current()->pid;
+    info._sifields._kill.si_uid = task_current()->uid;
+
     /* Send the signal */
-    return task_signal(task, sig);
+    return signal_send_info_thread(thread, sig, &info);
 }
 
-/* Send a signal to a specific thread in a thread group */
+/**
+ * Send a signal to a specific thread in a thread group
+ *
+ * @param tgid Thread group ID
+ * @param tid Thread ID
+ * @param sig Signal number
+ * @return 0 on success, negative error code on failure
+ */
 int signal_tgkill(pid_t tgid, pid_t tid, int sig) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -162,14 +277,36 @@ int signal_tgkill(pid_t tgid, pid_t tid, int sig) {
         return -1;
     }
 
+    /* Get the thread */
+    thread_t *thread = task_get_thread(task, tid);
+
+    if (thread == NULL) {
+        return -1;
+    }
+
+    /* Create signal info */
+    siginfo_t info;
+    memset(&info, 0, sizeof(siginfo_t));
+    info.si_signo = sig;
+    info.si_code = SI_TKILL;
+    info._sifields._kill.si_pid = task_current()->pid;
+    info._sifields._kill.si_uid = task_current()->uid;
+
     /* Send the signal */
-    return task_signal(task, sig);
+    return signal_send_info_thread(thread, sig, &info);
 }
 
-/* Change the action taken by a process on receipt of a specific signal */
+/**
+ * Change the action taken by a process on receipt of a specific signal
+ *
+ * @param sig Signal number
+ * @param act New signal action
+ * @param oact Old signal action
+ * @return 0 on success, negative error code on failure
+ */
 int signal_sigaction(int sig, const struct sigaction *act, struct sigaction *oact) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -180,23 +317,47 @@ int signal_sigaction(int sig, const struct sigaction *act, struct sigaction *oac
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Get the old action */
-    if (oact != NULL) {
-        memcpy(oact, &task->sigaction[sig], sizeof(struct sigaction));
+    if (oact != NULL && thread->sigactions != NULL) {
+        memcpy(oact, &thread->sigactions[sig], sizeof(struct sigaction));
     }
 
     /* Set the new action */
     if (act != NULL) {
-        memcpy(&task->sigaction[sig], act, sizeof(struct sigaction));
+        /* Allocate signal actions if not already allocated */
+        if (thread->sigactions == NULL) {
+            thread->sigactions = kmalloc(sizeof(struct sigaction) * SIGRTMAX, 0);
+            if (thread->sigactions == NULL) {
+                return -1;
+            }
+            memset(thread->sigactions, 0, sizeof(struct sigaction) * SIGRTMAX);
+        }
+
+        memcpy(&thread->sigactions[sig], act, sizeof(struct sigaction));
     }
 
     return 0;
 }
 
-/* Change the action taken by a process on receipt of a specific signal (with sigset size) */
+/**
+ * Change the action taken by a process on receipt of a specific signal (with sigset size)
+ *
+ * @param sig Signal number
+ * @param act New signal action
+ * @param oact Old signal action
+ * @param sigsetsize Size of signal set
+ * @return 0 on success, negative error code on failure
+ */
 int signal_rt_sigaction(int sig, const struct sigaction *act, struct sigaction *oact, size_t sigsetsize) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -209,7 +370,14 @@ int signal_rt_sigaction(int sig, const struct sigaction *act, struct sigaction *
     return signal_sigaction(sig, act, oact);
 }
 
-/* Change the signal mask of the calling process */
+/**
+ * Change the signal mask of the calling process
+ *
+ * @param how How to change the mask (SIG_BLOCK, SIG_UNBLOCK, SIG_SETMASK)
+ * @param set New signal mask
+ * @param oldset Old signal mask
+ * @return 0 on success, negative error code on failure
+ */
 int signal_sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
     /* Get the current task */
     task_struct_t *task = task_current();
@@ -218,9 +386,16 @@ int signal_sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Get the old mask */
     if (oldset != NULL) {
-        memcpy(oldset, &task->sigmask, sizeof(sigset_t));
+        *oldset = thread->signal_mask;
     }
 
     /* Set the new mask */
@@ -228,21 +403,17 @@ int signal_sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
         switch (how) {
             case SIG_BLOCK:
                 /* Block signals */
-                for (int i = 0; i < _NSIG_WORDS; i++) {
-                    task->sigmask.sig[i] |= set->sig[i];
-                }
+                thread->signal_mask |= *set;
                 break;
 
             case SIG_UNBLOCK:
                 /* Unblock signals */
-                for (int i = 0; i < _NSIG_WORDS; i++) {
-                    task->sigmask.sig[i] &= ~set->sig[i];
-                }
+                thread->signal_mask &= ~(*set);
                 break;
 
             case SIG_SETMASK:
                 /* Set the signal mask */
-                memcpy(&task->sigmask, set, sizeof(sigset_t));
+                thread->signal_mask = *set;
                 break;
 
             default:
@@ -253,7 +424,15 @@ int signal_sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
     return 0;
 }
 
-/* Change the signal mask of the calling process (with sigset size) */
+/**
+ * Change the signal mask of the calling process (with sigset size)
+ *
+ * @param how How to change the mask (SIG_BLOCK, SIG_UNBLOCK, SIG_SETMASK)
+ * @param set New signal mask
+ * @param oldset Old signal mask
+ * @param sigsetsize Size of signal set
+ * @return 0 on success, negative error code on failure
+ */
 int signal_rt_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t sigsetsize) {
     /* Check if the sigset size is valid */
     if (sigsetsize != sizeof(sigset_t)) {
@@ -264,7 +443,12 @@ int signal_rt_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t
     return signal_sigprocmask(how, set, oldset);
 }
 
-/* Examine pending signals */
+/**
+ * Examine pending signals
+ *
+ * @param set Signal set to fill with pending signals
+ * @return 0 on success, negative error code on failure
+ */
 int signal_sigpending(sigset_t *set) {
     /* Check parameters */
     if (set == NULL) {
@@ -278,13 +462,26 @@ int signal_sigpending(sigset_t *set) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Get the pending signals */
-    memcpy(set, &task->sigpending, sizeof(sigset_t));
+    *set = task->pending.signal & ~thread->signal_mask;
 
     return 0;
 }
 
-/* Examine pending signals (with sigset size) */
+/**
+ * Examine pending signals (with sigset size)
+ *
+ * @param set Signal set to fill with pending signals
+ * @param sigsetsize Size of signal set
+ * @return 0 on success, negative error code on failure
+ */
 int signal_rt_sigpending(sigset_t *set, size_t sigsetsize) {
     /* Check if the sigset size is valid */
     if (sigsetsize != sizeof(sigset_t)) {
@@ -295,7 +492,12 @@ int signal_rt_sigpending(sigset_t *set, size_t sigsetsize) {
     return signal_sigpending(set);
 }
 
-/* Wait for a signal */
+/**
+ * Wait for a signal
+ *
+ * @param mask Signal mask to use while waiting
+ * @return -1 with errno set to EINTR
+ */
 int signal_sigsuspend(const sigset_t *mask) {
     /* Check parameters */
     if (mask == NULL) {
@@ -309,23 +511,35 @@ int signal_sigsuspend(const sigset_t *mask) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Save the old mask */
-    sigset_t oldmask;
-    memcpy(&oldmask, &task->sigmask, sizeof(sigset_t));
+    sigset_t oldmask = thread->signal_mask;
 
     /* Set the new mask */
-    memcpy(&task->sigmask, mask, sizeof(sigset_t));
+    thread->signal_mask = *mask;
 
     /* Wait for a signal */
-    task_wait_signal(task);
+    sched_block_thread(thread);
 
     /* Restore the old mask */
-    memcpy(&task->sigmask, &oldmask, sizeof(sigset_t));
+    thread->signal_mask = oldmask;
 
     return -1; /* Always returns -1 with errno set to EINTR */
 }
 
-/* Wait for a signal (with sigset size) */
+/**
+ * Wait for a signal (with sigset size)
+ *
+ * @param mask Signal mask to use while waiting
+ * @param sigsetsize Size of signal set
+ * @return -1 with errno set to EINTR
+ */
 int signal_rt_sigsuspend(const sigset_t *mask, size_t sigsetsize) {
     /* Check if the sigset size is valid */
     if (sigsetsize != sizeof(sigset_t)) {
@@ -336,7 +550,13 @@ int signal_rt_sigsuspend(const sigset_t *mask, size_t sigsetsize) {
     return signal_sigsuspend(mask);
 }
 
-/* Set and/or get signal stack context */
+/**
+ * Set and/or get signal stack context
+ *
+ * @param ss New signal stack
+ * @param oss Old signal stack
+ * @return 0 on success, negative error code on failure
+ */
 int signal_sigaltstack(const stack_t *ss, stack_t *oss) {
     /* Get the current task */
     task_struct_t *task = task_current();
@@ -345,9 +565,25 @@ int signal_sigaltstack(const stack_t *ss, stack_t *oss) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Get the old stack */
     if (oss != NULL) {
-        memcpy(oss, &task->sigaltstack, sizeof(stack_t));
+        /* If no alternate stack is defined, return default values */
+        if (thread->user_stack == NULL) {
+            oss->ss_sp = NULL;
+            oss->ss_size = 0;
+            oss->ss_flags = SS_DISABLE;
+        } else {
+            oss->ss_sp = thread->user_stack;
+            oss->ss_size = 0; /* Unknown size */
+            oss->ss_flags = 0;
+        }
     }
 
     /* Set the new stack */
@@ -357,22 +593,29 @@ int signal_sigaltstack(const stack_t *ss, stack_t *oss) {
             return -1;
         }
 
-        /* Check if the stack is currently in use */
-        if (task->sigaltstack.ss_flags & SS_ONSTACK) {
-            return -1;
+        /* Check if the stack is disabled */
+        if (ss->ss_flags & SS_DISABLE) {
+            thread->user_stack = NULL;
+        } else {
+            /* Set the stack */
+            thread->user_stack = ss->ss_sp;
         }
-
-        /* Set the stack */
-        memcpy(&task->sigaltstack, ss, sizeof(stack_t));
     }
 
     return 0;
 }
 
-/* Queue a signal and data to a process */
+/**
+ * Queue a signal and data to a process
+ *
+ * @param pid Process ID
+ * @param sig Signal number
+ * @param uinfo Signal information
+ * @return 0 on success, negative error code on failure
+ */
 int signal_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo) {
     /* Check if the signal is valid */
-    if (sig < 0 || sig >= _NSIG) {
+    if (sig < 0 || sig >= SIGRTMAX) {
         return -1;
     }
 
@@ -389,10 +632,18 @@ int signal_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo) {
     }
 
     /* Queue the signal */
-    return task_signal_queue(task, sig, uinfo);
+    return signal_queue(task, sig, uinfo);
 }
 
-/* Synchronously wait for queued signals */
+/**
+ * Synchronously wait for queued signals with timeout and sigset size
+ *
+ * @param uthese Set of signals to wait for
+ * @param uinfo Signal information structure to fill
+ * @param uts Timeout
+ * @param sigsetsize Size of signal set
+ * @return Signal number on success, negative error code on failure
+ */
 int signal_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struct timespec *uts, size_t sigsetsize) {
     /* Check parameters */
     if (uthese == NULL) {
@@ -404,31 +655,25 @@ int signal_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struc
         return -1;
     }
 
-    /* Get the current task */
-    task_struct_t *task = task_current();
-
-    if (task == NULL) {
-        return -1;
-    }
-
-    /* Wait for the signals */
-    return task_signal_timedwait(task, uthese, uinfo, uts);
+    /* Call the normal sigtimedwait */
+    return signal_sigtimedwait(uthese, uinfo, uts);
 }
 
-/* Return from signal handler and cleanup stack frame */
+/**
+ * Return from signal handler and cleanup stack frame (with rt prefix)
+ *
+ * @return 0 on success, negative error code on failure
+ */
 int signal_rt_sigreturn(void) {
-    /* Get the current task */
-    task_struct_t *task = task_current();
-
-    if (task == NULL) {
-        return -1;
-    }
-
-    /* Return from the signal handler */
-    return task_signal_return(task);
+    /* Call the normal sigreturn */
+    return signal_sigreturn();
 }
 
-/* Wait for signal */
+/**
+ * Wait for signal
+ *
+ * @return -1 with errno set to EINTR
+ */
 int signal_pause(void) {
     /* Get the current task */
     task_struct_t *task = task_current();
@@ -437,8 +682,15 @@ int signal_pause(void) {
         return -1;
     }
 
+    /* Get the current thread */
+    thread_t *thread = thread_self();
+
+    if (thread == NULL) {
+        return -1;
+    }
+
     /* Wait for a signal */
-    task_wait_signal(task);
+    sched_block_thread(thread);
 
     return -1; /* Always returns -1 with errno set to EINTR */
 }

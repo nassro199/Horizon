@@ -39,183 +39,106 @@
 /* System call table */
 syscall_handler_t syscall_table[MAX_SYSCALLS];
 
-/* System call handlers */
+/* System call handlers - defined in kernel/syscall/ subdirectories */
 
-/* Exit system call */
-static long sys_exit(long status, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    sched_exit((int)status);
-    return 0;
-}
+/* Process-related system calls - defined in kernel/syscall/process/process.c */
+extern long sys_exit(long status, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_execve(long path, long argv, long envp, long arg4, long arg5, long arg6);
+extern long sys_wait4(long pid, long status, long options, long rusage, long arg5, long arg6);
+extern long sys_getpid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_getppid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_gettid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_set_tid_address(long tidptr, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_clone(long flags, long stack, long parent_tidptr, long child_tidptr, long tls, long arg6);
+extern long sys_exit_group(long status, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_getpgid(long pid, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_setpgid(long pid, long pgid, long arg3, long arg4, long arg5, long arg6);
+extern long sys_getpgrp(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_getsid(long pid, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_setsid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
 
-/* Read system call */
-static long sys_read(long fd, long buffer, long size, long arg4, long arg5, long arg6) {
-    /* Get the file from the file descriptor */
-    struct file *file = current->files->fd_array[fd];
-    if (file == NULL) {
-        return -EBADF;
-    }
-
-    /* Read from the file */
-    return vfs_read(file, (char *)buffer, size, &file->f_pos);
-}
-
-/* Write system call */
-static long sys_write(long fd, long buffer, long size, long arg4, long arg5, long arg6) {
-    /* Get the file from the file descriptor */
-    struct file *file = current->files->fd_array[fd];
-    if (file == NULL) {
-        return -EBADF;
-    }
-
-    /* Write to the file */
-    return vfs_write(file, (const char *)buffer, size, &file->f_pos);
-}
-
-/* Open system call - defined in kernel/fs/open.c */
+/* File system-related system calls - defined in kernel/syscall/fs/fs.c */
+extern long sys_read(long fd, long buffer, long size, long arg4, long arg5, long arg6);
+extern long sys_write(long fd, long buffer, long size, long arg4, long arg5, long arg6);
 extern long sys_open(long pathname, long flags, long mode, long unused1, long unused2, long unused3);
-
-/* Openat system call - defined in kernel/fs/open.c */
 extern long sys_openat(long dirfd, long pathname, long flags, long mode, long unused1, long unused2);
-
-/* Creat system call - defined in kernel/fs/open.c */
 extern long sys_creat(long pathname, long mode, long unused1, long unused2, long unused3, long unused4);
+extern long sys_close(long fd, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_lseek(long fd, long offset, long whence, long arg4, long arg5, long arg6);
+extern long sys_dup(long fd, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_dup2(long oldfd, long newfd, long arg3, long arg4, long arg5, long arg6);
+extern long sys_pipe(long pipefd, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_pipe2(long pipefd, long flags, long arg3, long arg4, long arg5, long arg6);
+extern long sys_fcntl(long fd, long cmd, long arg, long arg4, long arg5, long arg6);
+extern long sys_ioctl(long fd, long cmd, long arg, long arg4, long arg5, long arg6);
 
-/* Close system call */
-static long sys_close(long fd, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    /* Check if the file descriptor is valid */
-    if (fd < 0 || fd >= current->files->max_fds) {
-        return -EBADF;
-    }
+/* Memory management-related system calls - defined in kernel/syscall/mm/mm.c */
+extern long sys_mmap(long addr, long length, long prot, long flags, long fd, long offset);
+extern long sys_munmap(long addr, long length, long arg3, long arg4, long arg5, long arg6);
+extern long sys_brk(long brk, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_mprotect(long addr, long len, long prot, long arg4, long arg5, long arg6);
+extern long sys_mremap(long old_address, long old_size, long new_size, long flags, long new_address, long arg6);
+extern long sys_mlock(long addr, long len, long arg3, long arg4, long arg5, long arg6);
+extern long sys_munlock(long addr, long len, long arg3, long arg4, long arg5, long arg6);
+extern long sys_mlockall(long flags, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_munlockall(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_madvise(long addr, long length, long advice, long arg4, long arg5, long arg6);
+extern long sys_msync(long addr, long length, long flags, long arg4, long arg5, long arg6);
+extern long sys_mincore(long addr, long length, long vec, long arg4, long arg5, long arg6);
 
-    /* Get the file from the file descriptor */
-    struct file *file = current->files->fd_array[fd];
-    if (file == NULL) {
-        return -EBADF;
-    }
+/* Time-related system calls - defined in kernel/syscall/time/time.c */
+extern long sys_gettimeofday(long tv, long tz, long arg3, long arg4, long arg5, long arg6);
+extern long sys_settimeofday(long tv, long tz, long arg3, long arg4, long arg5, long arg6);
+extern long sys_nanosleep(long req, long rem, long arg3, long arg4, long arg5, long arg6);
+extern long sys_time(long tloc, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_clock_gettime(long clockid, long tp, long arg3, long arg4, long arg5, long arg6);
+extern long sys_clock_settime(long clockid, long tp, long arg3, long arg4, long arg5, long arg6);
+extern long sys_clock_getres(long clockid, long res, long arg3, long arg4, long arg5, long arg6);
+extern long sys_clock_nanosleep(long clockid, long flags, long req, long rem, long arg5, long arg6);
 
-    /* Close the file */
-    int error = vfs_close(file);
-    if (error) {
-        return error;
-    }
+/* Signal-related system calls - defined in kernel/syscall/signal/signal.c */
+extern long sys_kill(long pid, long sig, long arg3, long arg4, long arg5, long arg6);
+extern long sys_tkill(long tid, long sig, long arg3, long arg4, long arg5, long arg6);
+extern long sys_tgkill(long tgid, long tid, long sig, long arg4, long arg5, long arg6);
+extern long sys_sigaction(long sig, long act, long oact, long arg4, long arg5, long arg6);
+extern long sys_rt_sigaction(long sig, long act, long oact, long sigsetsize, long arg5, long arg6);
+extern long sys_sigprocmask(long how, long set, long oldset, long arg4, long arg5, long arg6);
+extern long sys_rt_sigprocmask(long how, long set, long oldset, long sigsetsize, long arg5, long arg6);
+extern long sys_sigpending(long set, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_rt_sigpending(long set, long sigsetsize, long arg3, long arg4, long arg5, long arg6);
+extern long sys_sigsuspend(long mask, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_rt_sigsuspend(long mask, long sigsetsize, long arg3, long arg4, long arg5, long arg6);
+extern long sys_sigwaitinfo(long uthese, long uinfo, long arg3, long arg4, long arg5, long arg6);
+extern long sys_rt_sigtimedwait(long uthese, long uinfo, long uts, long sigsetsize, long arg5, long arg6);
+extern long sys_rt_sigqueueinfo(long pid, long sig, long uinfo, long arg4, long arg5, long arg6);
+extern long sys_sigreturn(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_rt_sigreturn(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_pause(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_sigaltstack(long ss, long old_ss, long arg3, long arg4, long arg5, long arg6);
 
-    /* Clear the file descriptor */
-    current->files->fd_array[fd] = NULL;
-
-    return SUCCESS;
-}
-
-/* Fork system call */
-static long sys_fork(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    /* Create a new process */
-    struct task_struct *child = sched_fork();
-    if (child == NULL) {
-        return ERROR_NOMEM;
-    }
-
-    /* Return the child's PID to the parent */
-    return child->pid;
-}
-
-/* Exec system call */
-static long sys_execve(long path, long argv, long envp, long arg4, long arg5, long arg6) {
-    /* Execute a new program */
-    return sched_exec((const char *)path, (char *const *)argv, (char *const *)envp);
-}
-
-/* Wait system call */
-static long sys_wait4(long pid, long status, long options, long rusage, long arg5, long arg6) {
-    /* Wait for a process to change state */
-    return sched_wait(pid, (int *)status, options, (struct rusage *)rusage);
-}
-
-/* Get process ID system call */
-static long sys_getpid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    /* Return the current process ID */
-    return current->pid;
-}
-
-/* Get parent process ID system call */
-static long sys_getppid(long arg1, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    /* Return the parent process ID */
-    return current->parent->pid;
-}
-
-/* Memory map system call */
-static long sys_mmap(long addr, long length, long prot, long flags, long fd, long offset) {
-    /* Map a file into memory */
-    struct file *file = NULL;
-    if (fd >= 0 && fd < current->files->max_fds) {
-        file = current->files->fd_array[fd];
-    }
-
-    /* Map the memory */
-    void *mapped_addr = vmm_mmap(current->mm, (void *)addr, length, prot, flags, file, offset);
-    if (mapped_addr == NULL) {
-        return -ENOMEM;
-    }
-
-    return (long)mapped_addr;
-}
-
-/* Memory unmap system call */
-static long sys_munmap(long addr, long length, long arg3, long arg4, long arg5, long arg6) {
-    /* Unmap memory */
-    return vmm_munmap(current->mm, (void *)addr, length);
-}
-
-/* Break system call */
-static long sys_brk(long brk, long arg2, long arg3, long arg4, long arg5, long arg6) {
-    /* Change the program break */
-    return vmm_brk(current->mm, brk);
-}
-
-/* Get time of day system call */
-static long sys_gettimeofday(long tv, long tz, long arg3, long arg4, long arg5, long arg6) {
-    /* Get the current time */
-    struct timeval *tp = (struct timeval *)tv;
-    struct timezone *tzp = (struct timezone *)tz;
-
-    /* Set the time */
-    if (tp != NULL) {
-        tp->tv_sec = time_get_seconds();
-        tp->tv_usec = time_get_microseconds();
-    }
-
-    /* Set the timezone */
-    if (tzp != NULL) {
-        tzp->tz_minuteswest = 0;
-        tzp->tz_dsttime = 0;
-    }
-
-    return SUCCESS;
-}
-
-/* Nanosleep system call */
-static long sys_nanosleep(long req, long rem, long arg3, long arg4, long arg5, long arg6) {
-    /* Sleep for a specified time */
-    struct timespec *tp = (struct timespec *)req;
-    struct timespec *rmtp = (struct timespec *)rem;
-
-    /* Check if the timespec is valid */
-    if (tp == NULL) {
-        return ERROR_INVAL;
-    }
-
-    /* Sleep */
-    unsigned long timeout = tp->tv_sec * 1000 + tp->tv_nsec / 1000000;
-    schedule_timeout_interruptible(timeout);
-
-    /* Set the remaining time */
-    if (rmtp != NULL) {
-        rmtp->tv_sec = 0;
-        rmtp->tv_nsec = 0;
-    }
-
-    return SUCCESS;
-}
+/* IPC-related system calls - defined in kernel/syscall/ipc/ipc.c */
+extern long sys_ipc(long call, long first, long second, long third, long ptr, long fifth);
+extern long sys_semget(long key, long nsems, long semflg, long arg4, long arg5, long arg6);
+extern long sys_semop(long semid, long sops, long nsops, long arg4, long arg5, long arg6);
+extern long sys_semctl(long semid, long semnum, long cmd, long arg, long arg5, long arg6);
+extern long sys_msgget(long key, long msgflg, long arg3, long arg4, long arg5, long arg6);
+extern long sys_msgsnd(long msqid, long msgp, long msgsz, long msgflg, long arg5, long arg6);
+extern long sys_msgrcv(long msqid, long msgp, long msgsz, long msgtyp, long msgflg, long arg6);
+extern long sys_msgctl(long msqid, long cmd, long buf, long arg4, long arg5, long arg6);
+extern long sys_shmget(long key, long size, long shmflg, long arg4, long arg5, long arg6);
+extern long sys_shmat(long shmid, long shmaddr, long shmflg, long arg4, long arg5, long arg6);
+extern long sys_shmdt(long shmaddr, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_shmctl(long shmid, long cmd, long buf, long arg4, long arg5, long arg6);
+extern long sys_mq_open(long name, long oflag, long mode, long attr, long arg5, long arg6);
+extern long sys_mq_unlink(long name, long arg2, long arg3, long arg4, long arg5, long arg6);
+extern long sys_mq_timedsend(long mqdes, long msg_ptr, long msg_len, long msg_prio, long abs_timeout, long arg6);
+extern long sys_mq_timedreceive(long mqdes, long msg_ptr, long msg_len, long msg_prio, long abs_timeout, long arg6);
+extern long sys_mq_notify(long mqdes, long notification, long arg3, long arg4, long arg5, long arg6);
+extern long sys_mq_getsetattr(long mqdes, long mqstat, long omqstat, long arg4, long arg5, long arg6);
 
 /* External initialization functions */
+extern void process_syscalls_init(void);
 extern void fs_syscalls_init(void);
 extern void mm_syscalls_init(void);
 extern void time_syscalls_init(void);
@@ -224,7 +147,6 @@ extern void ipc_syscalls_init(void);
 extern void net_syscalls_init(void);
 extern void sysinfo_syscalls_init(void);
 extern void security_syscalls_init(void);
-extern void process_syscalls_init(void);
 extern void aio_syscalls_init(void);
 extern void futex_syscalls_init(void);
 
@@ -235,62 +157,8 @@ void syscall_init(void) {
         syscall_table[i] = NULL;
     }
 
-    /* Register process-related system calls */
-    syscall_register(SYS_EXIT, sys_exit);
-    syscall_register(SYS_FORK, sys_fork);
-    syscall_register(SYS_EXECVE, sys_execve);
-    syscall_register(SYS_WAIT4, sys_wait4);
-    syscall_register(SYS_GETPID, sys_getpid);
-    syscall_register(SYS_GETPPID, sys_getppid);
-
-    /* TODO: Implement these system calls
-    syscall_register(SYS_GETPGID, sys_getpgid);
-    syscall_register(SYS_SETPGID, sys_setpgid);
-    syscall_register(SYS_GETPGRP, sys_getpgrp);
-    syscall_register(SYS_GETSID, sys_getsid);
-    syscall_register(SYS_SETSID, sys_setsid);
-    syscall_register(SYS_GETRLIMIT, sys_getrlimit);
-    syscall_register(SYS_SETRLIMIT, sys_setrlimit);
-    syscall_register(SYS_PRLIMIT64, sys_prlimit64);
-    syscall_register(SYS_NICE, sys_nice);
-    syscall_register(SYS_GETPRIORITY, sys_getpriority);
-    syscall_register(SYS_SETPRIORITY, sys_setpriority);
-    syscall_register(SYS_PERSONALITY, sys_personality);
-    syscall_register(SYS_SETDOMAINNAME, sys_setdomainname);
-    syscall_register(SYS_SETHOSTNAME, sys_sethostname);
-    syscall_register(SYS_GETHOSTNAME, sys_gethostname);
-    syscall_register(SYS_GETDOMAINNAME, sys_getdomainname);
-    syscall_register(SYS_REBOOT, sys_reboot);
-    syscall_register(SYS_RESTART_SYSCALL, sys_restart_syscall);
-    syscall_register(SYS_KEXEC_LOAD, sys_kexec_load);
-    syscall_register(SYS_CLONE, sys_clone);
-    syscall_register(SYS_VFORK, sys_vfork);
-    syscall_register(SYS_EXIT_GROUP, sys_exit_group);
-    syscall_register(SYS_SET_TID_ADDRESS, sys_set_tid_address);
-    syscall_register(SYS_GETTID, sys_gettid);
-    syscall_register(SYS_SET_THREAD_AREA, sys_set_thread_area);
-    syscall_register(SYS_GET_THREAD_AREA, sys_get_thread_area);
-    syscall_register(SYS_WAITID, sys_waitid);
-    */
-
-    /* Register file-related system calls */
-    syscall_register(SYS_READ, sys_read);
-    syscall_register(SYS_WRITE, sys_write);
-    syscall_register(SYS_OPEN, sys_open);
-    syscall_register(SYS_OPENAT, sys_openat);
-    syscall_register(SYS_CREAT, sys_creat);
-    syscall_register(SYS_CLOSE, sys_close);
-
-    /* Register memory-related system calls */
-    syscall_register(SYS_BRK, sys_brk);
-    syscall_register(SYS_MMAP, sys_mmap);
-    syscall_register(SYS_MUNMAP, sys_munmap);
-
-    /* Register time-related system calls */
-    syscall_register(SYS_GETTIMEOFDAY, sys_gettimeofday);
-    syscall_register(SYS_NANOSLEEP, sys_nanosleep);
-
     /* Initialize subsystem-specific system calls */
+    process_syscalls_init();
     fs_syscalls_init();
     mm_syscalls_init();
     time_syscalls_init();
@@ -299,7 +167,6 @@ void syscall_init(void) {
     net_syscalls_init();
     sysinfo_syscalls_init();
     security_syscalls_init();
-    process_syscalls_init();
     aio_syscalls_init();
     futex_syscalls_init();
 

@@ -5,8 +5,8 @@
  * The system call numbers are compatible with Linux for x86.
  */
 
-#ifndef _KERNEL_SYSCALL_H
-#define _KERNEL_SYSCALL_H
+#ifndef _HORIZON_SYSCALL_H
+#define _HORIZON_SYSCALL_H
 
 #include <horizon/types.h>
 
@@ -329,4 +329,4 @@ long syscall_unregister(u32 num);
 /* System call handler */
 long syscall_handler(u32 num, long arg1, long arg2, long arg3, long arg4, long arg5, long arg6);
 
-#endif /* _KERNEL_SYSCALL_H */
+#endif /* _HORIZON_SYSCALL_H */

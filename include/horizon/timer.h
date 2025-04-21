@@ -1,16 +1,22 @@
 /**
  * timer.h - Horizon kernel timer definitions
- * 
+ *
  * This file contains definitions for the timer subsystem.
  * The definitions are compatible with Linux.
  */
 
-#ifndef _KERNEL_TIMER_H
-#define _KERNEL_TIMER_H
+#ifndef _HORIZON_TIMER_H
+#define _HORIZON_TIMER_H
 
 #include <horizon/types.h>
 #include <horizon/list.h>
 #include <horizon/time.h>
+
+/* Timer ID type */
+typedef u32 timer_id_t;
+
+/* Timer callback function type */
+typedef void (*timer_callback_t)(timer_id_t id, void *data);
 
 /* Timer flags */
 #define TIMER_FLAG_ACTIVE      0x00000001  /* Timer is active */
@@ -82,6 +88,14 @@ typedef struct hrtimer_cpu_base {
     struct hrtimer_clock_base clock_base[HRTIMER_MAX_CLOCK_BASES];  /* Clock bases */
 } hrtimer_cpu_base_t;
 
+/* Timer information structure */
+typedef struct timer_info {
+    timer_id_t id;              /* Timer ID */
+    u64 expires;                /* Expiration time in milliseconds */
+    u64 period;                 /* Period in milliseconds (0 for one-shot) */
+    u32 flags;                  /* Timer flags */
+} timer_info_t;
+
 /* High resolution timer restart values */
 enum hrtimer_restart {
     HRTIMER_NORESTART,             /* Timer is not restarted */
@@ -104,6 +118,25 @@ void msleep(unsigned int msecs);
 unsigned long msleep_interruptible(unsigned int msecs);
 void usleep_range(unsigned long min, unsigned long max);
 void ssleep(unsigned int seconds);
+
+/* New timer API */
+timer_id_t timer_create(timer_callback_t callback, void *data);
+int timer_delete(timer_id_t id);
+int timer_start(timer_id_t id, u64 expires, u64 period, u32 flags);
+int timer_stop(timer_id_t id);
+int timer_get_info(timer_id_t id, timer_info_t *info);
+void timer_process(void);
+u64 timer_get_jiffies(void);
+u32 timer_get_frequency(void);
+u64 timer_get_tick_period(void);
+u64 timer_msecs_to_jiffies(u64 msec);
+u64 timer_jiffies_to_msecs(u64 j);
+u64 timer_nsecs_to_jiffies(u64 nsec);
+u64 timer_jiffies_to_nsecs(u64 j);
+void timer_msleep(u64 msec);
+void timer_usleep(u64 usec);
+void timer_nsleep(u64 nsec);
+void timer_sleep_until(u64 timeout);
 
 /* High resolution timer functions */
 void hrtimer_init(struct hrtimer *timer, clockid_t clock_id, enum hrtimer_mode mode);
@@ -159,4 +192,4 @@ extern unsigned long jiffies;
 /* Timer ticks per second */
 extern unsigned int HZ;
 
-#endif /* _KERNEL_TIMER_H */
+#endif /* _HORIZON_TIMER_H */

@@ -23,7 +23,7 @@ CRYPTO_DIR = crypto
 NET_DIR = net
 
 # Source files
-KERNEL_SRCS = $(wildcard $(KERNEL_DIR)/*.c) $(wildcard $(KERNEL_DIR)/*/*.c)
+KERNEL_SRCS = $(wildcard $(KERNEL_DIR)/*.c) $(wildcard $(KERNEL_DIR)/*/*.c) $(wildcard $(KERNEL_DIR)/*/*/*.c)
 MM_SRCS = $(wildcard $(MM_DIR)/*.c) $(wildcard $(MM_DIR)/*/*.c)
 FS_SRCS = $(wildcard $(FS_DIR)/*.c) $(wildcard $(FS_DIR)/*/*.c)
 DRIVERS_SRCS = $(wildcard $(DRIVERS_DIR)/*/*.c) $(wildcard $(DRIVERS_DIR)/*/*/*.c)

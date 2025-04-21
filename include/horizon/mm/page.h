@@ -1,12 +1,12 @@
 /**
  * page.h - Horizon kernel page management definitions
- * 
+ *
  * This file contains definitions for the page management subsystem.
  * The definitions are compatible with Linux.
  */
 
-#ifndef _KERNEL_MM_PAGE_H
-#define _KERNEL_MM_PAGE_H
+#ifndef _HORIZON_MM_PAGE_H
+#define _HORIZON_MM_PAGE_H
 
 #include <horizon/types.h>
 #include <horizon/list.h>
@@ -97,4 +97,4 @@ unsigned long page_index(const page_t *page);
 void page_set_private(page_t *page, void *private);
 void *page_private(const page_t *page);
 
-#endif /* _KERNEL_MM_PAGE_H */
+#endif /* _HORIZON_MM_PAGE_H */

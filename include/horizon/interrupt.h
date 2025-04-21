@@ -5,8 +5,8 @@
  * The definitions are compatible with Linux.
  */
 
-#ifndef _KERNEL_INTERRUPT_H
-#define _KERNEL_INTERRUPT_H
+#ifndef _HORIZON_INTERRUPT_H
+#define _HORIZON_INTERRUPT_H
 
 #include <horizon/types.h>
 #include <horizon/list.h>
@@ -145,4 +145,4 @@ extern unsigned int current_interrupt;
 /* Interrupt nesting level */
 extern unsigned int interrupt_nesting_level;
 
-#endif /* _KERNEL_INTERRUPT_H */
+#endif /* _HORIZON_INTERRUPT_H */

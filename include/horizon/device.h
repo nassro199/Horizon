@@ -4,26 +4,11 @@
  * This file contains definitions for the device management subsystem.
  */
 
-#ifndef _KERNEL_DEVICE_H
-#define _KERNEL_DEVICE_H
+#ifndef _HORIZON_DEVICE_H
+#define _HORIZON_DEVICE_H
 
 #include <horizon/types.h>
 #include <horizon/list.h>
-
-/* Device class types */
-typedef enum {
-    DEVICE_CLASS_CHAR,       /* Character devices */
-    DEVICE_CLASS_BLOCK,      /* Block devices */
-    DEVICE_CLASS_NET,        /* Network devices */
-    DEVICE_CLASS_INPUT,      /* Input devices */
-    DEVICE_CLASS_GRAPHICS,   /* Graphics devices */
-    DEVICE_CLASS_SOUND,      /* Sound devices */
-    DEVICE_CLASS_USB,        /* USB devices */
-    DEVICE_CLASS_PCI,        /* PCI devices */
-    DEVICE_CLASS_PLATFORM,   /* Platform devices */
-    DEVICE_CLASS_VIRTUAL,    /* Virtual devices */
-    DEVICE_CLASS_MISC        /* Miscellaneous devices */
-} device_class_t;
 
 /* Device state */
 typedef enum {
@@ -82,14 +67,32 @@ typedef struct bus_type {
     struct bus_type *next;                           /* Next bus type */
 } bus_type_t;
 
+/* Forward declaration for device_class_enum */
+typedef enum device_class_enum device_class_enum_t;
+
 /* Device class structure */
 typedef struct device_class {
     char name[32];                                   /* Class name */
-    device_class_t type;                             /* Class type */
+    device_class_enum_t type;                        /* Class type */
     class_operations_t *ops;                         /* Class operations */
     list_head_t devices;                             /* List of devices */
     struct device_class *next;                       /* Next device class */
 } device_class_t;
+
+/* Rename the enum to avoid naming conflict */
+typedef enum device_class_enum {
+    DEVICE_CLASS_CHAR,       /* Character devices */
+    DEVICE_CLASS_BLOCK,      /* Block devices */
+    DEVICE_CLASS_NET,        /* Network devices */
+    DEVICE_CLASS_INPUT,      /* Input devices */
+    DEVICE_CLASS_GRAPHICS,   /* Graphics devices */
+    DEVICE_CLASS_SOUND,      /* Sound devices */
+    DEVICE_CLASS_USB,        /* USB devices */
+    DEVICE_CLASS_PCI,        /* PCI devices */
+    DEVICE_CLASS_PLATFORM,   /* Platform devices */
+    DEVICE_CLASS_VIRTUAL,    /* Virtual devices */
+    DEVICE_CLASS_MISC        /* Miscellaneous devices */
+} device_class_enum_t;
 
 /* Device driver structure */
 typedef struct device_driver {
@@ -152,4 +155,4 @@ device_class_t *class_find_by_name(const char *name);
 int class_add_device(device_class_t *class, device_t *dev);
 int class_remove_device(device_class_t *class, device_t *dev);
 
-#endif /* _KERNEL_DEVICE_H */
+#endif /* _HORIZON_DEVICE_H */

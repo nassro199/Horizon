@@ -1,12 +1,12 @@
 /**
  * vmm.h - Horizon kernel virtual memory management definitions
- * 
+ *
  * This file contains definitions for the virtual memory management subsystem.
  * The definitions are compatible with Linux.
  */
 
-#ifndef _KERNEL_MM_VMM_H
-#define _KERNEL_MM_VMM_H
+#ifndef _HORIZON_MM_VMM_H
+#define _HORIZON_MM_VMM_H
 
 #include <horizon/types.h>
 #include <horizon/list.h>
@@ -128,6 +128,9 @@ typedef struct mm_struct {
     unsigned long exec_rss;        /* VM_EXEC & ~VM_WRITE */
     unsigned long stack_rss;       /* VM_GROWSUP/DOWN */
     unsigned long reserved_rss;    /* Reserved pages */
+    u32 *swap_map;                /* Swap map */
+    unsigned long swap_size;       /* Swap size in pages */
+    unsigned long swap_used;       /* Used swap pages */
 } mm_struct_t;
 
 /* Virtual memory fault */
@@ -167,4 +170,4 @@ int vmm_mincore(mm_struct_t *mm, void *addr, unsigned long size, unsigned char *
 int vmm_madvise(mm_struct_t *mm, void *addr, unsigned long size, int advice);
 int vmm_remap_file_pages(mm_struct_t *mm, void *addr, unsigned long size, unsigned long prot, unsigned long pgoff, int flags);
 
-#endif /* _KERNEL_MM_VMM_H */
+#endif /* _HORIZON_MM_VMM_H */

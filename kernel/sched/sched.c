@@ -9,7 +9,10 @@
 #include <horizon/types.h>
 #include <horizon/mm.h>
 #include <horizon/string.h>
-#include <horizon/sched/sched.h>
+#include <horizon/sched.h>
+#include <horizon/sched/rt.h>
+#include <horizon/sched/sched_domain.h>
+#include <horizon/sched/load_balance.h>
 
 /* Global run queue */
 static run_queue_t run_queue;
@@ -45,6 +48,17 @@ void sched_init_advanced(void)
 
     /* Set as the current task */
     run_queue.curr = idle;
+
+    /* Initialize the real-time scheduler */
+    rt_init();
+
+    /* Initialize the scheduler domains */
+    sched_domain_init();
+
+    /* Initialize the load balancing subsystem */
+    load_balance_init();
+
+    printk(KERN_INFO "SCHED: Initialized advanced scheduler\n");
 }
 
 /* Create a new task */
@@ -228,6 +242,13 @@ void sched_set_policy(task_struct_t *task, u32 policy)
         return;
     }
 
+    /* Check if the policy is valid */
+    if (policy != SCHED_NORMAL && policy != SCHED_FIFO &&
+        policy != SCHED_RR && policy != SCHED_BATCH &&
+        policy != SCHED_IDLE && policy != SCHED_DEADLINE) {
+        return;
+    }
+
     /* Set the policy */
     task->policy = policy;
 
@@ -235,11 +256,21 @@ void sched_set_policy(task_struct_t *task, u32 policy)
     if (task->policy == SCHED_NORMAL || task->policy == SCHED_BATCH || task->policy == SCHED_IDLE) {
         task->normal_prio = task->static_prio;
     } else {
-        task->normal_prio = 99 - task->static_prio;
+        /* Real-time priority */
+        task->normal_prio = rt_prio_base + (99 - task->static_prio);
     }
 
     /* Set the current priority */
     task->prio = task->normal_prio;
+
+    /* If this is a real-time task, update the time slice */
+    if (task->policy == SCHED_RR) {
+        /* Round-robin tasks get a fixed time slice */
+        task->time_slice = 100;
+    } else if (task->policy == SCHED_FIFO) {
+        /* FIFO tasks run until they yield or block */
+        task->time_slice = UINT32_MAX;
+    }
 }
 
 /* Yield the CPU */
@@ -252,15 +283,44 @@ void sched_yield_advanced(void)
 /* Schedule a task */
 void sched_schedule(void)
 {
-    /* Find the next runnable task */
-    task_struct_t *next = run_queue.head;
+    task_struct_t *task;
+    u64 current_jiffies = timer_get_jiffies();
 
-    /* Skip the current task */
-    if (next == run_queue.curr) {
-        next = next->next;
+    /* Check for tasks that need to be woken up */
+    for (task = run_queue.head; task != NULL; task = task->next) {
+        if (task->state == TASK_INTERRUPTIBLE && task->wake_time <= current_jiffies) {
+            /* Wake up the task */
+            task->state = TASK_RUNNING;
+        }
     }
 
-    /* If no other task is runnable, use the idle task */
+    /* Check if load balancing is needed */
+    load_balance_run();
+
+    /* Try to find a real-time task first */
+    task_struct_t *next = NULL;
+
+    /* Check for real-time tasks */
+    for (task = run_queue.head; task != NULL; task = task->next) {
+        if (task->state == TASK_RUNNING &&
+            (task->policy == SCHED_FIFO || task->policy == SCHED_RR)) {
+            /* Found a real-time task */
+            next = task;
+            break;
+        }
+    }
+
+    /* If no real-time task is runnable, find a normal task */
+    if (next == NULL) {
+        for (task = run_queue.head; task != NULL; task = task->next) {
+            if (task->state == TASK_RUNNING) {
+                next = task;
+                break;
+            }
+        }
+    }
+
+    /* If no task is runnable, use the idle task */
     if (next == NULL) {
         next = run_queue.idle;
     }
@@ -279,6 +339,16 @@ void sched_schedule(void)
         /* Update the execution time */
         prev->sum_exec_runtime++;
 
+        /* Update real-time statistics if applicable */
+        if (rt_is_realtime((thread_t *)next)) {
+            rt_switch_count++;
+
+            /* Check if this is a preemption */
+            if (prev->state == TASK_RUNNING && rt_is_realtime((thread_t *)prev)) {
+                rt_preempt_count++;
+            }
+        }
+
         /* Context switch would happen here */
         /* This would be implemented with actual context switching */
     }
@@ -295,12 +365,10 @@ void sched_sleep_advanced(u32 ms)
 {
     /* Set the current task to sleep */
     run_queue.curr->state = TASK_INTERRUPTIBLE;
+    run_queue.curr->wake_time = timer_get_jiffies() + timer_msecs_to_jiffies(ms);
 
     /* Schedule another task */
     sched_schedule();
-
-    /* This would be implemented with a timer */
-    /* For now, just yield */
 }
 
 /* Wake up a task */

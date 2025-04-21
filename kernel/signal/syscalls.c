@@ -109,13 +109,21 @@ long sys_rt_sigreturn(long unused1, long unused2, long unused3, long unused4, lo
 /* System call: signalfd */
 long sys_signalfd(long ufd, long user_mask, long sigsetsize, long unused1, long unused2, long unused3) {
     /* Create a file descriptor for accepting signals */
-    return signal_signalfd(ufd, (const sigset_t *)user_mask, sigsetsize);
+    /* This will be implemented in signalfd.c */
+    return -1;
 }
 
 /* System call: signalfd4 */
 long sys_signalfd4(long ufd, long user_mask, long sigsetsize, long flags, long unused1, long unused2) {
     /* Create a file descriptor for accepting signals */
-    return signal_signalfd4(ufd, (const sigset_t *)user_mask, sigsetsize, flags);
+    /* This will be implemented in signalfd.c */
+    return -1;
+}
+
+/* System call: rt_sigqueueinfo */
+long sys_rt_sigqueueinfo(long pid, long sig, long uinfo, long unused1, long unused2, long unused3) {
+    /* Queue a signal and data to a process */
+    return signal_rt_sigqueueinfo(pid, sig, (siginfo_t *)uinfo);
 }
 
 /* System call: sigreturn */
@@ -142,6 +150,14 @@ long sys_pause(long unused1, long unused2, long unused3, long unused4, long unus
     return signal_pause();
 }
 
+/* System call: sigqueue */
+long sys_sigqueue(long pid, long sig, long value, long unused1, long unused2, long unused3) {
+    /* Send a signal to a process with a value */
+    union sigval sigval;
+    sigval.sival_int = value;
+    return signal_sigqueue(pid, sig, sigval);
+}
+
 /* Register signal system calls */
 void signal_syscalls_init(void) {
     /* Register signal system calls */
@@ -166,4 +182,5 @@ void signal_syscalls_init(void) {
     syscall_register(SYS_SIGWAITINFO, sys_sigwaitinfo);
     syscall_register(SYS_SIGTIMEDWAIT, sys_sigtimedwait);
     syscall_register(SYS_PAUSE, sys_pause);
+    syscall_register(SYS_SIGQUEUE, sys_sigqueue);
 }

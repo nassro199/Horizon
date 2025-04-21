@@ -1,11 +1,11 @@
 /**
  * sched.h - Advanced scheduler definitions
- * 
+ *
  * This file contains definitions for the advanced process scheduler.
  */
 
-#ifndef _KERNEL_SCHED_H
-#define _KERNEL_SCHED_H
+#ifndef _HORIZON_SCHED_H
+#define _HORIZON_SCHED_H
 
 #include <horizon/types.h>
 #include <horizon/sched.h>
@@ -91,7 +91,7 @@ typedef struct task_struct {
     u32 tgid;               /* Thread group ID */
     u32 ppid;               /* Parent process ID */
     char comm[16];          /* Process name */
-    
+
     /* Scheduler information */
     int prio;               /* Process priority */
     int static_prio;        /* Static priority */
@@ -100,24 +100,25 @@ typedef struct task_struct {
     u32 time_slice;         /* Time slice */
     u32 exec_start;         /* Start time */
     u32 sum_exec_runtime;   /* Total execution time */
-    
+    u64 wake_time;          /* Wake up time in jiffies */
+
     /* Memory management */
     mm_struct_t *mm;        /* Memory descriptor */
-    
+
     /* Credentials */
     cred_t *cred;           /* Process credentials */
-    
+
     /* File system information */
     void *fs;               /* File system information */
     void *files;            /* Open files */
-    
+
     /* Signal handling */
     void *sighand;          /* Signal handlers */
     void *signal;           /* Signal information */
-    
+
     /* Context */
     context_t context;      /* CPU context */
-    
+
     /* Linked list pointers */
     struct task_struct *parent;     /* Parent process */
     struct task_struct *children;   /* Child processes */
@@ -152,4 +153,4 @@ void sched_sleep_advanced(u32 ms);
 void sched_wake_up(task_struct_t *task);
 void sched_exit_advanced(int status);
 
-#endif /* _KERNEL_SCHED_H */
+#endif /* _HORIZON_SCHED_H */

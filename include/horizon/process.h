@@ -5,8 +5,8 @@
  * The definitions are compatible with Linux.
  */
 
-#ifndef _KERNEL_PROCESS_H
-#define _KERNEL_PROCESS_H
+#ifndef _HORIZON_PROCESS_H
+#define _HORIZON_PROCESS_H
 
 #include <horizon/types.h>
 #include <horizon/mm.h>
@@ -257,4 +257,4 @@ int process_waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options, stru
 int process_execve(const char *filename, char *const argv[], char *const envp[]);
 void process_exit_group(int status);
 
-#endif /* _KERNEL_PROCESS_H */
+#endif /* _HORIZON_PROCESS_H */
