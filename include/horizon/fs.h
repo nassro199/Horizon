@@ -133,6 +133,7 @@ typedef struct file_operations {
     error_t (*open)(file_t *file, u32 flags);
     error_t (*close)(file_t *file);
     error_t (*seek)(file_t *file, u64 offset, int whence);
+    loff_t (*llseek)(file_t *file, loff_t offset, int whence);
     error_t (*flush)(file_t *file);
     error_t (*fsync)(file_t *file);
     int (*ioctl)(file_t *file, unsigned int cmd, unsigned long arg);

@@ -45,6 +45,7 @@ struct file_operations ext2_file_ops = {
     .open = ext2_open_file,
     .close = ext2_close,
     .seek = ext2_seek,
+    .llseek = ext2_llseek,
     .flush = ext2_flush,
     .fsync = ext2_fsync,
     .ioctl = ext2_ioctl,
@@ -74,7 +75,7 @@ struct super_operations ext2_super_ops = {
 
 /**
  * Get the superblock from an inode
- * 
+ *
  * @param inode Inode to get superblock for
  * @return Pointer to the superblock, or NULL on failure
  */
@@ -84,20 +85,20 @@ struct super_block *ext2_get_super_from_inode(struct inode *inode) {
         printk(KERN_ERR "EXT2: Inode does not exist\n");
         return NULL;
     }
-    
+
     /* Get the mount point */
     for (int i = 0; i < mount_count; i++) {
         /* Check if the mount point is valid */
         if (mounts[i].root != NULL) {
             /* Check if the inode is on this file system */
-            if (inode->inode_num >= mounts[i].root->inode_num && 
+            if (inode->inode_num >= mounts[i].root->inode_num &&
                 inode->inode_num < mounts[i].root->inode_num + 1000000) {
                 /* Found the mount point */
                 return mounts[i].super;
             }
         }
     }
-    
+
     /* Not found */
     return NULL;
 }

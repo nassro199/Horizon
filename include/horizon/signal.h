@@ -80,6 +80,14 @@ typedef struct sigaction {
     void (*sa_restorer)(void);  /* Signal restorer */
 } sigaction_t;
 
+/* Kernel signal action */
+struct k_sigaction {
+    void (*sa_handler)(int);    /* Signal handler */
+    unsigned long sa_flags;     /* Signal flags */
+    void (*sa_restorer)(void);  /* Signal restorer */
+    sigset_t sa_mask;           /* Signal mask */
+};
+
 /* Signal handler */
 #define sa_handler   _u.sa_handler
 #define sa_sigaction _u.sa_sigaction

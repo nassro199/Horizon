@@ -237,6 +237,7 @@ error_t ext2_open_file(file_t *file, u32 flags);
 ssize_t ext2_read(file_t *file, void *buffer, size_t size);
 ssize_t ext2_write(file_t *file, const void *buffer, size_t size);
 error_t ext2_seek(file_t *file, u64 offset, int whence);
+loff_t ext2_llseek(file_t *file, loff_t offset, int whence);
 error_t ext2_flush(file_t *file);
 error_t ext2_fsync(file_t *file);
 error_t ext2_close(file_t *file);

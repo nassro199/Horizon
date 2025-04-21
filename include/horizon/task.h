@@ -14,6 +14,8 @@
 #include <horizon/time.h>
 #include <horizon/sched.h>
 #include <horizon/thread.h>
+#include <horizon/signal.h>
+#include <horizon/timer.h>
 
 /* Process states (Linux compatible) */
 #define TASK_RUNNING        0
@@ -23,6 +25,12 @@
 #define TASK_STOPPED        4
 #define TASK_TRACED         5
 #define TASK_DEAD           6
+
+/* PID types */
+#define PIDTYPE_PID    0
+#define PIDTYPE_PGID   1
+#define PIDTYPE_SID    2
+#define PIDTYPE_MAX    3
 
 /* Process flags */
 #define PF_KTHREAD          0x00000001 /* Kernel thread */
@@ -46,6 +54,11 @@ struct signal_struct;
 struct sighand_struct;
 struct sigpending;
 struct thread_struct;
+struct k_sigaction;
+struct hrtimer;
+struct pid;
+struct tty_struct;
+struct vfsmount;
 
 /* Thread information */
 typedef struct thread_info {
@@ -130,6 +143,7 @@ typedef struct thread_struct {
 typedef struct task_struct {
     /* Process identification */
     u32 pid;                       /* Process ID */
+    u32 tid;                       /* Thread ID */
     u32 tgid;                      /* Thread group ID */
     u32 ppid;                      /* Parent process ID */
     char comm[16];                 /* Command name */

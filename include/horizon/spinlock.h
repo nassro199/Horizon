@@ -60,6 +60,17 @@ typedef struct spinlock {
         raw_spin_lock_init(&(lock)->raw_lock); \
     } while (0)
 
+/* Initialize a spinlock with a name */
+#ifdef CONFIG_DEBUG_SPINLOCK
+#define spin_lock_init_named(lock, name_str) \
+    do { \
+        raw_spin_lock_init(&(lock)->raw_lock); \
+        (lock)->raw_lock.name = (name_str); \
+    } while (0)
+#else
+#define spin_lock_init_named(lock, name_str) spin_lock_init(lock)
+#endif
+
 /* Acquire a raw spinlock */
 #ifdef CONFIG_DEBUG_SPINLOCK
 void __raw_spin_lock(raw_spinlock_t *lock, const char *file, int line);
