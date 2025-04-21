@@ -1,6 +1,6 @@
 /**
  * list.h - Horizon kernel linked list definitions
- * 
+ *
  * This file contains definitions for the linked list implementation.
  */
 
@@ -21,6 +21,15 @@ static inline void list_init(list_head_t *list)
     list->next = list;
     list->prev = list;
 }
+
+/* Initialize a list head (macro version) */
+#define INIT_LIST_HEAD(list) do { \
+    (list)->next = (list); \
+    (list)->prev = (list); \
+} while (0)
+
+/* List head initializer */
+#define LIST_HEAD_INIT(name) { &(name), &(name) }
 
 /* Add a new entry after the specified head */
 static inline void list_add(list_head_t *new, list_head_t *head)

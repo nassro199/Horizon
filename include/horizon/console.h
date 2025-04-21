@@ -1,6 +1,6 @@
 /**
  * console.h - Horizon kernel console definitions
- * 
+ *
  * This file contains definitions for the kernel console.
  */
 
@@ -87,6 +87,7 @@ void early_console_backspace(void);
 void early_console_tab(void);
 void early_console_save_cursor(void);
 void early_console_restore_cursor(void);
+void early_console_print(const char *str);
 void early_console_print_dec(u32 n);
 void early_console_print_hex(u32 n);
 void early_console_print_bin(u32 n);

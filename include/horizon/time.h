@@ -1,6 +1,6 @@
 /**
  * time.h - Horizon kernel time definitions
- * 
+ *
  * This file contains definitions for the time subsystem.
  * The definitions are compatible with Linux.
  */
@@ -9,6 +9,26 @@
 #define _KERNEL_TIME_H
 
 #include <horizon/types.h>
+
+/* Time types */
+typedef int clockid_t;
+typedef int timer_t;
+typedef long suseconds_t;
+
+/* Signal value union */
+union sigval {
+    int sival_int;              /* Integer value */
+    void *sival_ptr;            /* Pointer value */
+};
+
+/* Signal event structure */
+struct sigevent {
+    int sigev_notify;           /* Notification type */
+    int sigev_signo;            /* Signal number */
+    union sigval sigev_value;   /* Signal value */
+    void (*sigev_notify_function)(union sigval); /* Notification function */
+    void *sigev_notify_attributes; /* Notification attributes */
+};
 
 /* Clock IDs */
 #define CLOCK_REALTIME           0
@@ -95,6 +115,7 @@ long time_get_nanoseconds(void);
 int time_set_nanoseconds(long ns);
 time_t time_get_monotonic_seconds(void);
 long time_get_monotonic_nanoseconds(void);
+u64 get_timestamp(void);
 unsigned long time_alarm(unsigned long seconds);
 int time_getitimer(int which, struct itimerval *curr_value);
 int time_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value);

@@ -35,7 +35,7 @@ typedef struct wait_queue_head {
 
 /* Initialize a wait queue head */
 static inline void wait_queue_init(wait_queue_head_t *wq_head) {
-    spin_lock_init(&wq_head->lock);
+    wq_head->lock.raw_lock.lock = 0;
     INIT_LIST_HEAD(&wq_head->head);
 }
 

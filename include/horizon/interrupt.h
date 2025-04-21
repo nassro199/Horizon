@@ -10,6 +10,7 @@
 
 #include <horizon/types.h>
 #include <horizon/list.h>
+#include <horizon/cpumask.h>
 
 /* Interrupt flags */
 #define IRQF_TRIGGER_NONE       0x00000000  /* No trigger */

@@ -9,6 +9,7 @@
 
 #include <horizon/types.h>
 #include <horizon/list.h>
+#include <horizon/config.h>
 
 /* Include scheduler components */
 #include <horizon/sched/rt.h>
@@ -51,13 +52,14 @@ typedef struct run_queue {
     struct list_head expired; /* Expired queue */
 
     /* Run queue arrays */
-    struct list_head *active;  /* Active array */
-    struct list_head *expired; /* Expired array */
+    struct list_head (*active)[SCHED_PRIO_MAX + 1];  /* Active array */
     struct list_head arrays[2][SCHED_PRIO_MAX + 1]; /* Priority arrays */
 
     /* Run queue current */
     struct thread *curr;      /* Current thread */
     struct thread *idle;      /* Idle thread */
+    struct thread *head;      /* Head of the run queue */
+    struct thread *tail;      /* Tail of the run queue */
 
     /* Run queue bitmap */
     u64 bitmap;               /* Priority bitmap */

@@ -29,8 +29,8 @@ extern void capability_init(void);
 extern void uhci_driver_init(void);
 extern void kernel_init(void);
 
-/* Kernel main entry point */
-void kernel_main(u32 magic, multiboot_info_t *mbi) {
+/* Kernel entry point */
+void kernel_entry(u32 magic, multiboot_info_t *mbi) {
     /* Initialize early console */
     early_console_init();
 

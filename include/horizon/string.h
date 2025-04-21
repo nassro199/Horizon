@@ -1,6 +1,6 @@
 /**
  * string.h - String manipulation functions
- * 
+ *
  * This file contains declarations for string manipulation functions.
  */
 
@@ -8,6 +8,7 @@
 #define _STRING_H
 
 #include <horizon/types.h>
+#include <horizon/stdarg.h>
 
 /* String functions */
 char *strcpy(char *dest, const char *src);
@@ -19,6 +20,12 @@ int strncmp(const char *s1, const char *s2, size_t n);
 size_t strlen(const char *s);
 char *strchr(const char *s, int c);
 char *strstr(const char *haystack, const char *needle);
+
+/* Formatted output functions */
+int sprintf(char *str, const char *format, ...);
+int snprintf(char *str, size_t size, const char *format, ...);
+int vsprintf(char *str, const char *format, va_list ap);
+int vsnprintf(char *str, size_t size, const char *format, va_list ap);
 
 /* Memory functions */
 void *memcpy(void *dest, const void *src, size_t n);

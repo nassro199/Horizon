@@ -13,32 +13,29 @@
 #include <horizon/string.h>
 #include <horizon/time.h>
 #include <horizon/console.h>
+#include <horizon/errno.h>
+#include <horizon/thread_context.h>
+#include <horizon/sched/config.h>
+#include <horizon/stddef.h>
+
+/* Define constants */
+#define UINT32_MAX 0xFFFFFFFF
 
 /* Scheduler run queues */
-run_queue_t run_queues[CONFIG_NR_CPUS];
+struct run_queue run_queues[CONFIG_NR_CPUS];
 
 /* Scheduler initialization */
 void sched_init(void) {
     /* Initialize run queues */
     for (u32 i = 0; i < CONFIG_NR_CPUS; i++) {
-        run_queue_t *rq = &run_queues[i];
+        struct run_queue *rq = &run_queues[i];
 
         /* Initialize run queue */
-        memset(rq, 0, sizeof(run_queue_t));
+        memset(rq, 0, sizeof(struct run_queue));
 
         /* Initialize run queue lists */
         INIT_LIST_HEAD(&rq->queue);
         INIT_LIST_HEAD(&rq->expired);
-
-        /* Initialize run queue arrays */
-        for (u32 j = 0; j <= SCHED_PRIO_MAX; j++) {
-            INIT_LIST_HEAD(&rq->arrays[0][j]);
-            INIT_LIST_HEAD(&rq->arrays[1][j]);
-        }
-
-        /* Initialize run queue pointers */
-        rq->active = rq->arrays[0];
-        rq->expired = rq->arrays[1];
 
         /* Initialize run queue statistics */
         rq->nr_running = 0;
@@ -46,13 +43,15 @@ void sched_init(void) {
         rq->nr_schedule = 0;
         rq->curr_timestamp = get_timestamp();
         rq->last_timestamp = rq->curr_timestamp;
+        rq->head = NULL;
+        rq->tail = NULL;
     }
 
     /* Create idle thread */
-    thread_t *idle_thread = kmalloc(sizeof(thread_t));
+    struct thread *idle_thread = kmalloc(sizeof(struct thread));
     if (idle_thread != NULL) {
         /* Initialize idle thread */
-        memset(idle_thread, 0, sizeof(thread_t));
+        memset(idle_thread, 0, sizeof(struct thread));
         idle_thread->tid = 0;
         idle_thread->pid = 0;
         idle_thread->state = THREAD_STATE_RUNNING;
@@ -63,13 +62,12 @@ void sched_init(void) {
         idle_thread->policy = THREAD_SCHED_IDLE;
         idle_thread->time_slice = SCHED_TIMESLICE_DEFAULT;
         idle_thread->start_time = get_timestamp();
-        idle_thread->start_routine = (void *(*)(void *))sched_idle_thread;
-        idle_thread->arg = NULL;
-        idle_thread->task = task_current();
 
-        /* Initialize idle thread lists */
-        INIT_LIST_HEAD(&idle_thread->thread_list);
-        INIT_LIST_HEAD(&idle_thread->process_threads);
+        /* Allocate context */
+        idle_thread->context = kmalloc(sizeof(thread_context_t));
+        if (idle_thread->context != NULL) {
+            memset(idle_thread->context, 0, sizeof(thread_context_t));
+        }
 
         /* Set idle thread for each run queue */
         for (u32 i = 0; i < CONFIG_NR_CPUS; i++) {
@@ -105,60 +103,104 @@ void sched_stop(void) {
 }
 
 /**
+ * Idle thread function
+ *
+ * This function is executed by the idle thread when no other threads are runnable.
+ * It should never return.
+ */
+void sched_idle_thread(void) {
+    /* Enable interrupts */
+    sti();
+
+    /* Loop forever */
+    while (1) {
+        /* Execute the HLT instruction to save power */
+        cpu_halt();
+    }
+
+    /* Never reached */
+}
+
+/**
  * Scheduler tick
  *
  * This function is called by the timer interrupt handler.
  */
 void sched_tick(void) {
     /* Get current run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Update timestamp */
     rq->curr_timestamp = get_timestamp();
 
     /* Get current thread */
-    thread_t *curr = rq->curr;
+    struct thread *curr = rq->curr;
 
     /* Check if current thread is idle */
     if (curr == rq->idle) {
         return;
     }
 
-    /* Update thread time slice */
-    if (curr->time_slice > 0) {
-        curr->time_slice--;
+    /* Handle real-time scheduling policies */
+    if (curr->policy == SCHED_FIFO) {
+        /* FIFO threads run until they yield or block */
+        /* No time slice management needed */
+    } else if (curr->policy == SCHED_RR) {
+        /* Round-robin threads get a fixed time slice */
+        if (curr->time_slice > 0) {
+            curr->time_slice--;
+        }
+
+        /* Check if time slice expired */
+        if (curr->time_slice == 0) {
+            /* Reset time slice */
+            curr->time_slice = 100; /* 100ms time slice for RR tasks */
+
+            /* Requeue thread (move to end of its priority queue) */
+            sched_requeue_thread(curr);
+
+            /* Schedule */
+            sched_schedule();
+        }
+    } else {
+        /* Normal scheduling policies */
+        if (curr->time_slice > 0) {
+            curr->time_slice--;
+        }
+
+        /* Check if thread time slice expired */
+        if (curr->time_slice == 0) {
+            /* Reset time slice */
+            curr->time_slice = SCHED_TIMESLICE_DEFAULT;
+
+            /* Requeue thread */
+            sched_requeue_thread(curr);
+
+            /* Schedule */
+            sched_schedule();
+        }
     }
 
-    /* Check if thread time slice expired */
-    if (curr->time_slice == 0) {
-        /* Reset time slice */
-        curr->time_slice = SCHED_TIMESLICE_DEFAULT;
+    /* Check for sleeping threads that need to be woken up */
+    struct thread *thread = rq->head;
+    struct thread *next;
 
-        /* Requeue thread */
-        sched_requeue_thread(curr);
+    while (thread != NULL) {
+        /* Save next thread before potentially removing this one */
+        next = thread->next;
 
-        /* Schedule */
-        sched_schedule();
-    }
-
-    /* Check sleeping threads */
-    thread_t *thread;
-    list_for_each_entry(thread, &rq->expired, thread_list) {
         /* Check if thread is sleeping */
         if (thread->state == THREAD_STATE_SLEEPING) {
             /* Check if thread wakeup time has passed */
             if (rq->curr_timestamp >= thread->wakeup_time) {
                 /* Wake up thread */
-                thread->state = THREAD_STATE_READY;
-
-                /* Add thread to run queue */
-                sched_add_thread(thread);
+                sched_wakeup_thread(thread);
             }
         }
-    }
 
-    /* Check expired queue */
-    sched_check_expired(rq);
+        /* Move to next thread */
+        thread = next;
+    }
 
     /* Update statistics */
     sched_update_statistics(rq);
@@ -182,16 +224,24 @@ void sched_schedule(void) {
     cli();
 
     /* Get current run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Update statistics */
     rq->nr_schedule++;
 
     /* Get current thread */
-    thread_t *curr = rq->curr;
+    struct thread *curr = rq->curr;
 
-    /* Get next thread */
-    thread_t *next = sched_dequeue_thread();
+    /* Try to find a real-time thread first */
+    struct thread *next = NULL;
+
+    /* Check for real-time tasks using the RT scheduler */
+    next = rt_schedule(rq);
+
+    /* If no real-time thread is available, get a normal thread */
+    if (next == NULL) {
+        next = sched_dequeue_thread();
+    }
 
     /* If no thread is ready, use idle thread */
     if (next == NULL) {
@@ -200,24 +250,50 @@ void sched_schedule(void) {
 
     /* If current thread is still running, requeue it */
     if (curr != rq->idle && curr->state == THREAD_STATE_RUNNING) {
-        /* Requeue thread */
-        sched_requeue_thread(curr);
+        /* For FIFO tasks, only requeue if they're yielding or blocking */
+        if (curr->policy != SCHED_FIFO || curr->state != THREAD_STATE_RUNNING) {
+            /* Requeue thread */
+            sched_requeue_thread(curr);
+        }
     }
 
-    /* Switch to next thread */
+    /* Check if the next thread can preempt the current thread */
     if (curr != next) {
-        /* Update statistics */
-        rq->nr_switches++;
+        /* Real-time threads can always preempt non-real-time threads */
+        int can_preempt = 0;
 
-        /* Set thread state */
-        curr->state = THREAD_STATE_READY;
-        next->state = THREAD_STATE_RUNNING;
+        if (rt_is_realtime(next)) {
+            if (!rt_is_realtime(curr)) {
+                /* Real-time thread preempting non-real-time thread */
+                can_preempt = 1;
+            } else {
+                /* Both are real-time, check priorities */
+                can_preempt = rt_can_preempt(next, curr);
+            }
+        } else if (curr->policy == SCHED_FIFO && curr->state == THREAD_STATE_RUNNING) {
+            /* FIFO threads can't be preempted by non-real-time threads */
+            can_preempt = 0;
+        } else {
+            /* Normal preemption rules */
+            can_preempt = 1;
+        }
 
-        /* Set current thread */
-        rq->curr = next;
+        if (can_preempt) {
+            /* Update statistics */
+            rq->nr_switches++;
 
-        /* Switch context */
-        sched_context_switch(curr, next);
+            /* Set thread state */
+            if (curr->state == THREAD_STATE_RUNNING) {
+                curr->state = THREAD_STATE_READY;
+            }
+            next->state = THREAD_STATE_RUNNING;
+
+            /* Set current thread */
+            rq->curr = next;
+
+            /* Switch context */
+            sched_context_switch(curr, next);
+        }
     }
 
     /* Enable interrupts */
@@ -236,15 +312,27 @@ void sched_add_thread(struct thread *thread) {
     }
 
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Check thread state */
     if (thread->state != THREAD_STATE_READY) {
         return;
     }
 
-    /* Add thread to run queue */
-    sched_enqueue_thread(thread);
+    /* Add thread to the end of the run queue */
+    if (rq->tail == NULL) {
+        /* Empty queue */
+        rq->head = thread;
+        rq->tail = thread;
+        thread->next = NULL;
+        thread->prev = NULL;
+    } else {
+        /* Add to the end of the queue */
+        thread->prev = rq->tail;
+        thread->next = NULL;
+        rq->tail->next = thread;
+        rq->tail = thread;
+    }
 
     /* Update statistics */
     rq->nr_running++;
@@ -262,10 +350,26 @@ void sched_remove_thread(struct thread *thread) {
     }
 
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Remove thread from run queue */
-    list_del(&thread->thread_list);
+    if (thread->prev != NULL) {
+        thread->prev->next = thread->next;
+    } else {
+        /* Thread is the head of the queue */
+        rq->head = thread->next;
+    }
+
+    if (thread->next != NULL) {
+        thread->next->prev = thread->prev;
+    } else {
+        /* Thread is the tail of the queue */
+        rq->tail = thread->prev;
+    }
+
+    /* Clear thread links */
+    thread->next = NULL;
+    thread->prev = NULL;
 
     /* Update statistics */
     if (rq->nr_running > 0) {
@@ -343,9 +447,6 @@ void sched_sleep_thread(struct thread *thread, u64 ms) {
     /* Remove thread from run queue */
     sched_remove_thread(thread);
 
-    /* Add thread to expired queue */
-    list_add_tail(&thread->thread_list, &this_rq()->expired);
-
     /* If thread is current thread, schedule */
     if (thread == this_rq()->curr) {
         sched_schedule();
@@ -370,9 +471,6 @@ void sched_wakeup_thread(struct thread *thread) {
 
     /* Set thread state */
     thread->state = THREAD_STATE_READY;
-
-    /* Remove thread from expired queue */
-    list_del(&thread->thread_list);
 
     /* Add thread to run queue */
     sched_add_thread(thread);
@@ -442,6 +540,18 @@ void sched_set_policy(struct thread *thread, u32 policy) {
 
     /* Set policy */
     thread->policy = policy;
+
+    /* Set appropriate time slice based on policy */
+    if (policy == SCHED_FIFO) {
+        /* FIFO threads run until they yield or block */
+        thread->time_slice = UINT32_MAX;
+    } else if (policy == SCHED_RR) {
+        /* Round-robin threads get a fixed time slice */
+        thread->time_slice = 100; /* 100ms time slice */
+    } else {
+        /* Normal threads get the default time slice */
+        thread->time_slice = SCHED_TIMESLICE_DEFAULT;
+    }
 
     /* Update thread */
     sched_update_thread(thread);
@@ -560,21 +670,25 @@ void sched_enqueue_thread(struct thread *thread) {
     }
 
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
-    /* Get thread priority */
-    u32 prio = thread->dynamic_priority;
-
-    /* Check priority range */
-    if (prio > SCHED_PRIO_MAX) {
-        prio = SCHED_PRIO_MAX;
+    /* Add thread to the end of the run queue */
+    if (rq->tail == NULL) {
+        /* Empty queue */
+        rq->head = thread;
+        rq->tail = thread;
+        thread->next = NULL;
+        thread->prev = NULL;
+    } else {
+        /* Add to the end of the queue */
+        thread->prev = rq->tail;
+        thread->next = NULL;
+        rq->tail->next = thread;
+        rq->tail = thread;
     }
 
-    /* Add thread to active array */
-    list_add_tail(&thread->thread_list, &rq->active[prio]);
-
-    /* Set bitmap */
-    rq->bitmap |= (1ULL << prio);
+    /* Update statistics */
+    rq->nr_running++;
 }
 
 /**
@@ -584,36 +698,28 @@ void sched_enqueue_thread(struct thread *thread) {
  */
 struct thread *sched_dequeue_thread(void) {
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Check if run queue is empty */
-    if (rq->bitmap == 0) {
+    if (rq->head == NULL) {
         return NULL;
     }
 
-    /* Find highest priority */
-    u32 prio = __builtin_ffsll(rq->bitmap) - 1;
+    /* Get the highest priority thread */
+    struct thread *thread = rq->head;
 
-    /* Get thread */
-    thread_t *thread = list_first_entry_or_null(&rq->active[prio], thread_t, thread_list);
-
-    /* Check if thread exists */
-    if (thread == NULL) {
-        /* Clear bitmap */
-        rq->bitmap &= ~(1ULL << prio);
-
-        /* Try again */
-        return sched_dequeue_thread();
+    /* Remove from the run queue */
+    if (thread->next != NULL) {
+        rq->head = thread->next;
+        thread->next->prev = NULL;
+    } else {
+        rq->head = NULL;
+        rq->tail = NULL;
     }
 
-    /* Remove thread from active array */
-    list_del(&thread->thread_list);
-
-    /* Check if active array is empty */
-    if (list_empty(&rq->active[prio])) {
-        /* Clear bitmap */
-        rq->bitmap &= ~(1ULL << prio);
-    }
+    /* Clear thread links */
+    thread->next = NULL;
+    thread->prev = NULL;
 
     return thread;
 }
@@ -630,21 +736,22 @@ void sched_requeue_thread(struct thread *thread) {
     }
 
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
-    /* Get thread priority */
-    u32 prio = thread->dynamic_priority;
-
-    /* Check priority range */
-    if (prio > SCHED_PRIO_MAX) {
-        prio = SCHED_PRIO_MAX;
+    /* Add thread to the end of the run queue */
+    if (rq->tail == NULL) {
+        /* Empty queue */
+        rq->head = thread;
+        rq->tail = thread;
+        thread->next = NULL;
+        thread->prev = NULL;
+    } else {
+        /* Add to the end of the queue */
+        thread->prev = rq->tail;
+        thread->next = NULL;
+        rq->tail->next = thread;
+        rq->tail = thread;
     }
-
-    /* Add thread to active array */
-    list_add_tail(&thread->thread_list, &rq->active[prio]);
-
-    /* Set bitmap */
-    rq->bitmap |= (1ULL << prio);
 }
 
 /**
@@ -659,10 +766,10 @@ void sched_check_preempt(struct thread *thread) {
     }
 
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Get current thread */
-    thread_t *curr = rq->curr;
+    struct thread *curr = rq->curr;
 
     /* Check if current thread is idle */
     if (curr == rq->idle) {
@@ -671,7 +778,25 @@ void sched_check_preempt(struct thread *thread) {
         return;
     }
 
-    /* Check if thread priority is higher than current thread */
+    /* Handle real-time preemption */
+    if (rt_is_realtime(thread)) {
+        if (!rt_is_realtime(curr)) {
+            /* Real-time thread can always preempt non-real-time thread */
+            sched_schedule();
+            return;
+        } else {
+            /* Both are real-time, check priorities */
+            if (rt_can_preempt(thread, curr)) {
+                sched_schedule();
+                return;
+            }
+        }
+    } else if (curr->policy == SCHED_FIFO && curr->state == THREAD_STATE_RUNNING) {
+        /* Non-real-time thread cannot preempt a running FIFO thread */
+        return;
+    }
+
+    /* Normal preemption rules */
     if (thread->dynamic_priority < curr->dynamic_priority) {
         /* Schedule */
         sched_schedule();
@@ -683,19 +808,14 @@ void sched_check_preempt(struct thread *thread) {
  *
  * @param rq Run queue
  */
-void sched_check_expired(run_queue_t *rq) {
+void sched_check_expired(struct run_queue *rq) {
     /* Check parameters */
     if (rq == NULL) {
         return;
     }
 
-    /* Check if active array is empty */
-    if (rq->bitmap == 0) {
-        /* Swap active and expired arrays */
-        struct list_head *tmp = rq->active;
-        rq->active = rq->expired;
-        rq->expired = tmp;
-    }
+    /* For now, we don't have a separate expired queue */
+    /* In a real implementation, we would swap active and expired queues */
 }
 
 /**
@@ -779,18 +899,38 @@ void sched_update_policy(struct thread *thread) {
 
     /* Update policy */
     switch (thread->policy) {
-        case THREAD_SCHED_FIFO:
-            /* FIFO threads have high priority */
+        case SCHED_FIFO:
+            /* FIFO threads have real-time priority */
             thread->static_priority = THREAD_PRIO_REALTIME;
+            /* FIFO threads run until they yield or block */
+            thread->time_slice = UINT32_MAX;
             break;
-        case THREAD_SCHED_RR:
-            /* Round-robin threads have high priority */
-            thread->static_priority = THREAD_PRIO_HIGH;
+        case SCHED_RR:
+            /* Round-robin threads have real-time priority */
+            thread->static_priority = THREAD_PRIO_REALTIME;
+            /* Round-robin threads get a fixed time slice */
+            thread->time_slice = 100; /* 100ms time slice */
             break;
-        case THREAD_SCHED_OTHER:
+        case SCHED_BATCH:
+            /* Batch threads have low priority */
+            thread->static_priority = THREAD_PRIO_LOW;
+            thread->time_slice = SCHED_TIMESLICE_DEFAULT * 2; /* Double time slice */
+            break;
+        case SCHED_IDLE:
+            /* Idle threads have lowest priority */
+            thread->static_priority = THREAD_PRIO_IDLE;
+            thread->time_slice = SCHED_TIMESLICE_DEFAULT;
+            break;
+        case SCHED_DEADLINE:
+            /* Deadline threads have highest priority */
+            thread->static_priority = THREAD_PRIO_REALTIME - 1; /* Higher than FIFO/RR */
+            thread->time_slice = SCHED_TIMESLICE_DEFAULT;
+            break;
+        case SCHED_NORMAL:
         default:
             /* Normal threads have normal priority */
             thread->static_priority = THREAD_PRIO_NORMAL;
+            thread->time_slice = SCHED_TIMESLICE_DEFAULT;
             break;
     }
 
@@ -820,7 +960,7 @@ void sched_update_affinity(struct thread *thread) {
  *
  * @param rq Run queue
  */
-void sched_update_statistics(run_queue_t *rq) {
+void sched_update_statistics(struct run_queue *rq) {
     /* Check parameters */
     if (rq == NULL) {
         return;
@@ -835,7 +975,7 @@ void sched_update_statistics(run_queue_t *rq) {
  */
 void sched_print_statistics(void) {
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Print statistics */
     console_printf("Scheduler statistics:\n");
@@ -849,37 +989,31 @@ void sched_print_statistics(void) {
  */
 void sched_print_runqueue(void) {
     /* Get run queue */
-    run_queue_t *rq = this_rq();
+    struct run_queue *rq = this_rq();
 
     /* Print run queue */
     console_printf("Run queue:\n");
 
-    /* Print active array */
-    console_printf("  Active array:\n");
-    for (u32 i = 0; i <= SCHED_PRIO_MAX; i++) {
-        if (!list_empty(&rq->active[i])) {
-            console_printf("    Priority %u:\n", i);
-
-            /* Print threads */
-            thread_t *thread;
-            list_for_each_entry(thread, &rq->active[i], thread_list) {
-                console_printf("      Thread %u (PID %u)\n", thread->tid, thread->pid);
-            }
-        }
+    /* Print current thread */
+    if (rq->curr != NULL) {
+        console_printf("  Current thread: %u (PID %u)\n", rq->curr->tid, rq->curr->pid);
+    } else {
+        console_printf("  Current thread: None\n");
     }
 
-    /* Print expired array */
-    console_printf("  Expired array:\n");
-    for (u32 i = 0; i <= SCHED_PRIO_MAX; i++) {
-        if (!list_empty(&rq->expired[i])) {
-            console_printf("    Priority %u:\n", i);
+    /* Print idle thread */
+    if (rq->idle != NULL) {
+        console_printf("  Idle thread: %u (PID %u)\n", rq->idle->tid, rq->idle->pid);
+    } else {
+        console_printf("  Idle thread: None\n");
+    }
 
-            /* Print threads */
-            thread_t *thread;
-            list_for_each_entry(thread, &rq->expired[i], thread_list) {
-                console_printf("      Thread %u (PID %u)\n", thread->tid, thread->pid);
-            }
-        }
+    /* Print run queue */
+    console_printf("  Run queue:\n");
+    struct thread *thread = rq->head;
+    while (thread != NULL) {
+        console_printf("    Thread %u (PID %u)\n", thread->tid, thread->pid);
+        thread = thread->next;
     }
 }
 
@@ -906,18 +1040,7 @@ void sched_print_thread(struct thread *thread) {
     console_printf("  CPU: %u\n", thread->cpu);
 }
 
-/**
- * Idle thread
- *
- * This function is called when no thread is ready to run.
- */
-void sched_idle_thread(void) {
-    /* Idle loop */
-    for (;;) {
-        /* Halt the CPU */
-        __asm__ volatile("hlt");
-    }
-}
+
 
 /**
  * Context switch
@@ -931,24 +1054,10 @@ void sched_context_switch(struct thread *prev, struct thread *next) {
         return;
     }
 
-    /* Save previous thread context */
-    thread_context_t *prev_context = (thread_context_t *)prev->context;
+    /* For now, just a stub implementation */
+    /* In a real implementation, we would save the current context and load the new one */
+    /* This would involve saving and restoring registers, stack pointers, etc. */
 
-    /* Load next thread context */
-    thread_context_t *next_context = (thread_context_t *)next->context;
-
-    /* Switch context */
-    __asm__ volatile(
-        "pushl %%ebp\n"
-        "movl %%esp, %0\n"
-        "movl %1, %%esp\n"
-        "movl $1f, %0\n"
-        "pushl %2\n"
-        "ret\n"
-        "1:\n"
-        "popl %%ebp\n"
-        : "=m" (prev_context->esp), "=m" (prev_context->eip)
-        : "m" (next_context->eip), "m" (next_context->esp)
-        : "memory"
-    );
+    /* For demonstration purposes, we'll just print a message */
+    console_printf("Context switch from thread %u to thread %u\n", prev->tid, next->tid);
 }

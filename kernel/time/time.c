@@ -78,6 +78,11 @@ u32 time_get_monotonic_nanoseconds(void) {
     return monotonic_nsec;
 }
 
+/* Get the current timestamp in microseconds */
+u64 get_timestamp(void) {
+    return (u64)monotonic_time * 1000000 + (u64)monotonic_nsec / 1000;
+}
+
 /* Set the current time in seconds */
 int time_set(time_t sec) {
     /* Set the time */

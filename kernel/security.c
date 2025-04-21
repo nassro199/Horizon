@@ -4,27 +4,40 @@
  * This file contains the implementation of the security subsystem.
  */
 
+#define NULL ((void *)0)
+
 #include <horizon/kernel.h>
 #include <horizon/types.h>
+#include <horizon/stddef.h>
 #include <horizon/security.h>
 #include <horizon/spinlock.h>
 #include <horizon/list.h>
 #include <horizon/mm.h>
 #include <horizon/errno.h>
 #include <horizon/string.h>
+#include <horizon/fs/types.h>
 
 /* Security module list */
 static security_module_t *security_modules = NULL;
 
 /* Security lock */
-static spinlock_t security_lock = SPIN_LOCK_INITIALIZER;
+static spinlock_t security_lock = { { 0 } };
 
 /**
  * Initialize security subsystem
  */
 void security_init(void) {
     /* Initialize lock */
-    spin_lock_init(&security_lock);
+    security_lock.raw_lock.lock = 0;
+#ifdef CONFIG_DEBUG_SPINLOCK
+    security_lock.raw_lock.name = "security_lock";
+    security_lock.raw_lock.file = NULL;
+    security_lock.raw_lock.line = 0;
+    security_lock.raw_lock.owner = 0;
+    security_lock.raw_lock.owner_pc = 0;
+    security_lock.raw_lock.held_count = 0;
+    security_lock.raw_lock.contention_count = 0;
+#endif
 }
 
 /**

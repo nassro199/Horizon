@@ -7,8 +7,7 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
-/* NULL definition */
-#define NULL ((void *)0)
+#include <horizon/stddef.h>
 
 /* Basic types */
 typedef unsigned char      u8;
@@ -21,19 +20,10 @@ typedef signed short       s16;
 typedef signed int         s32;
 typedef signed long long   s64;
 
-typedef u32                size_t;
-typedef s32                ssize_t;
-typedef s64                off_t;
 typedef s64                loff_t;
-typedef u32                mode_t;
-typedef u32                uid_t;
-typedef u32                gid_t;
-typedef u32                dev_t;
-typedef u32                ino_t;
 typedef u32                nlink_t;
 typedef u32                blksize_t;
 typedef u64                blkcnt_t;
-typedef u32                umode_t;
 
 /* Boolean type */
 typedef enum {

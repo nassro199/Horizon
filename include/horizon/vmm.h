@@ -1,6 +1,6 @@
 /**
  * vmm.h - Virtual Memory Manager definitions
- * 
+ *
  * This file contains definitions for the virtual memory manager.
  */
 
@@ -50,14 +50,7 @@
 #define MAP_EXECUTABLE  0x40    /* Mark it as an executable */
 #define MAP_LOCKED      0x80    /* Lock the mapping */
 
-/* Virtual memory area structure */
-typedef struct vm_area_struct {
-    void *vm_start;                /* Start address */
-    void *vm_end;                  /* End address */
-    u32 vm_flags;                  /* Flags */
-    u32 vm_page_prot;              /* Page protection */
-    struct vm_area_struct *vm_next; /* Next area in list */
-} vm_area_struct_t;
+/* Using vm_area_struct from mm_types.h */
 
 /* Page directory structure */
 typedef struct page_directory {

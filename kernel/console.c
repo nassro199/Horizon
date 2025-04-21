@@ -1,6 +1,6 @@
 /**
  * console.c - Horizon kernel console implementation
- * 
+ *
  * This file contains the implementation of the kernel console.
  */
 
@@ -9,6 +9,7 @@
 #include <horizon/console.h>
 #include <horizon/string.h>
 #include <horizon/stdarg.h>
+#include <horizon/io.h>
 
 /* VGA text mode constants */
 #define VGA_WIDTH       80
@@ -30,7 +31,7 @@ static u8 cursor_visible = 1;
 void console_init(void) {
     /* Clear console */
     console_clear();
-    
+
     /* Show cursor */
     console_show_cursor();
 }
@@ -43,11 +44,11 @@ void console_clear(void) {
     for (u32 i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++) {
         vga_memory[i] = (console_attr << 8) | ' ';
     }
-    
+
     /* Reset cursor */
     console_x = 0;
     console_y = 0;
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -60,7 +61,7 @@ void console_clear(void) {
 
 /**
  * Put a character on the console
- * 
+ *
  * @param c Character to put
  */
 void console_putchar(char c) {
@@ -79,10 +80,10 @@ void console_putchar(char c) {
             console_tab();
             return;
     }
-    
+
     /* Put character */
     vga_memory[console_y * VGA_WIDTH + console_x] = (console_attr << 8) | c;
-    
+
     /* Advance cursor */
     console_x++;
     if (console_x >= VGA_WIDTH) {
@@ -92,7 +93,7 @@ void console_putchar(char c) {
             console_scroll();
         }
     }
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -105,7 +106,7 @@ void console_putchar(char c) {
 
 /**
  * Write a string to the console
- * 
+ *
  * @param str String to write
  */
 void console_write(const char *str) {
@@ -116,7 +117,7 @@ void console_write(const char *str) {
 
 /**
  * Write a string to the console with attributes
- * 
+ *
  * @param str String to write
  * @param attr Attributes
  */
@@ -129,7 +130,7 @@ void console_write_attr(const char *str, u8 attr) {
 
 /**
  * Write a string to the console with colors
- * 
+ *
  * @param str String to write
  * @param fg Foreground color
  * @param bg Background color
@@ -140,24 +141,24 @@ void console_write_color(const char *str, u8 fg, u8 bg) {
 
 /**
  * Print formatted string to the console
- * 
+ *
  * @param fmt Format string
  * @param ... Arguments
  */
 void console_printf(const char *fmt, ...) {
     char buf[1024];
     va_list args;
-    
+
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    
+
     console_write(buf);
 }
 
 /**
  * Print formatted string to the console with attributes
- * 
+ *
  * @param attr Attributes
  * @param fmt Format string
  * @param ... Arguments
@@ -165,17 +166,17 @@ void console_printf(const char *fmt, ...) {
 void console_printf_attr(u8 attr, const char *fmt, ...) {
     char buf[1024];
     va_list args;
-    
+
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    
+
     console_write_attr(buf, attr);
 }
 
 /**
  * Print formatted string to the console with colors
- * 
+ *
  * @param fg Foreground color
  * @param bg Background color
  * @param fmt Format string
@@ -184,17 +185,17 @@ void console_printf_attr(u8 attr, const char *fmt, ...) {
 void console_printf_color(u8 fg, u8 bg, const char *fmt, ...) {
     char buf[1024];
     va_list args;
-    
+
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
-    
+
     console_write_color(buf, fg, bg);
 }
 
 /**
  * Set console attributes
- * 
+ *
  * @param attr Attributes
  */
 void console_set_attr(u8 attr) {
@@ -203,7 +204,7 @@ void console_set_attr(u8 attr) {
 
 /**
  * Set console colors
- * 
+ *
  * @param fg Foreground color
  * @param bg Background color
  */
@@ -213,7 +214,7 @@ void console_set_color(u8 fg, u8 bg) {
 
 /**
  * Get console attributes
- * 
+ *
  * @return Attributes
  */
 u8 console_get_attr(void) {
@@ -222,7 +223,7 @@ u8 console_get_attr(void) {
 
 /**
  * Get console colors
- * 
+ *
  * @param fg Pointer to store foreground color
  * @param bg Pointer to store background color
  */
@@ -237,7 +238,7 @@ void console_get_color(u8 *fg, u8 *bg) {
 
 /**
  * Set cursor position
- * 
+ *
  * @param x X position
  * @param y Y position
  */
@@ -249,11 +250,11 @@ void console_set_cursor(u32 x, u32 y) {
     if (y >= VGA_HEIGHT) {
         y = VGA_HEIGHT - 1;
     }
-    
+
     /* Set cursor position */
     console_x = x;
     console_y = y;
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -266,7 +267,7 @@ void console_set_cursor(u32 x, u32 y) {
 
 /**
  * Get cursor position
- * 
+ *
  * @param x Pointer to store X position
  * @param y Pointer to store Y position
  */
@@ -284,13 +285,13 @@ void console_get_cursor(u32 *x, u32 *y) {
  */
 void console_show_cursor(void) {
     cursor_visible = 1;
-    
+
     /* Enable cursor */
     outb(0x3D4, 0x0A);
     outb(0x3D5, (inb(0x3D5) & 0xC0) | 0x0E);
     outb(0x3D4, 0x0B);
     outb(0x3D5, (inb(0x3D5) & 0xE0) | 0x0F);
-    
+
     /* Update cursor position */
     u16 pos = console_y * VGA_WIDTH + console_x;
     outb(0x3D4, 14);
@@ -304,7 +305,7 @@ void console_show_cursor(void) {
  */
 void console_hide_cursor(void) {
     cursor_visible = 0;
-    
+
     /* Disable cursor */
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
@@ -318,12 +319,12 @@ void console_scroll(void) {
     for (u32 i = 0; i < VGA_WIDTH * (VGA_HEIGHT - 1); i++) {
         vga_memory[i] = vga_memory[i + VGA_WIDTH];
     }
-    
+
     /* Clear last line */
     for (u32 i = 0; i < VGA_WIDTH; i++) {
         vga_memory[(VGA_HEIGHT - 1) * VGA_WIDTH + i] = (console_attr << 8) | ' ';
     }
-    
+
     /* Adjust cursor */
     console_y--;
 }
@@ -337,7 +338,7 @@ void console_newline(void) {
     if (console_y >= VGA_HEIGHT) {
         console_scroll();
     }
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -358,10 +359,10 @@ void console_backspace(void) {
         console_y--;
         console_x = VGA_WIDTH - 1;
     }
-    
+
     /* Clear character */
     vga_memory[console_y * VGA_WIDTH + console_x] = (console_attr << 8) | ' ';
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -385,7 +386,7 @@ void console_tab(void) {
             console_scroll();
         }
     }
-    
+
     /* Update hardware cursor */
     if (cursor_visible) {
         u16 pos = console_y * VGA_WIDTH + console_x;
@@ -412,26 +413,37 @@ void console_restore_cursor(void) {
 }
 
 /**
+ * Print a string to the early console
+ *
+ * @param str String to print
+ */
+void early_console_print(const char *str) {
+    console_write(str);
+}
+
+
+
+/**
  * Print decimal number
- * 
+ *
  * @param n Number to print
  */
 void console_print_dec(u32 n) {
     char buf[16];
     u32 i = 0;
-    
+
     /* Handle 0 */
     if (n == 0) {
         console_putchar('0');
         return;
     }
-    
+
     /* Convert to string */
     while (n > 0) {
         buf[i++] = '0' + (n % 10);
         n /= 10;
     }
-    
+
     /* Print in reverse order */
     while (i > 0) {
         console_putchar(buf[--i]);
@@ -440,29 +452,29 @@ void console_print_dec(u32 n) {
 
 /**
  * Print hexadecimal number
- * 
+ *
  * @param n Number to print
  */
 void console_print_hex(u32 n) {
     char buf[16];
     u32 i = 0;
-    
+
     /* Handle 0 */
     if (n == 0) {
         console_write("0x0");
         return;
     }
-    
+
     /* Convert to string */
     while (n > 0) {
         u32 digit = n & 0xF;
         buf[i++] = digit < 10 ? '0' + digit : 'A' + digit - 10;
         n >>= 4;
     }
-    
+
     /* Print prefix */
     console_write("0x");
-    
+
     /* Print in reverse order */
     while (i > 0) {
         console_putchar(buf[--i]);
@@ -471,28 +483,28 @@ void console_print_hex(u32 n) {
 
 /**
  * Print binary number
- * 
+ *
  * @param n Number to print
  */
 void console_print_bin(u32 n) {
     char buf[32];
     u32 i = 0;
-    
+
     /* Handle 0 */
     if (n == 0) {
         console_write("0b0");
         return;
     }
-    
+
     /* Convert to string */
     while (n > 0) {
         buf[i++] = '0' + (n & 1);
         n >>= 1;
     }
-    
+
     /* Print prefix */
     console_write("0b");
-    
+
     /* Print in reverse order */
     while (i > 0) {
         console_putchar(buf[--i]);
@@ -501,28 +513,28 @@ void console_print_bin(u32 n) {
 
 /**
  * Print octal number
- * 
+ *
  * @param n Number to print
  */
 void console_print_oct(u32 n) {
     char buf[16];
     u32 i = 0;
-    
+
     /* Handle 0 */
     if (n == 0) {
         console_write("0o0");
         return;
     }
-    
+
     /* Convert to string */
     while (n > 0) {
         buf[i++] = '0' + (n & 7);
         n >>= 3;
     }
-    
+
     /* Print prefix */
     console_write("0o");
-    
+
     /* Print in reverse order */
     while (i > 0) {
         console_putchar(buf[--i]);
@@ -537,7 +549,7 @@ void console_print_oct(u32 n) {
 void early_console_init(void) {
     /* Clear console */
     early_console_clear();
-    
+
     /* Show cursor */
     early_console_show_cursor();
 }
@@ -551,7 +563,7 @@ void early_console_clear(void) {
 
 /**
  * Put a character on the early console
- * 
+ *
  * @param c Character to put
  */
 void early_console_putchar(char c) {
@@ -560,7 +572,7 @@ void early_console_putchar(char c) {
 
 /**
  * Write a string to the early console
- * 
+ *
  * @param str String to write
  */
 void early_console_write(const char *str) {
@@ -569,7 +581,7 @@ void early_console_write(const char *str) {
 
 /**
  * Write a string to the early console with attributes
- * 
+ *
  * @param str String to write
  * @param attr Attributes
  */
@@ -579,7 +591,7 @@ void early_console_write_attr(const char *str, u8 attr) {
 
 /**
  * Write a string to the early console with colors
- * 
+ *
  * @param str String to write
  * @param fg Foreground color
  * @param bg Background color
@@ -590,7 +602,7 @@ void early_console_write_color(const char *str, u8 fg, u8 bg) {
 
 /**
  * Set early console attributes
- * 
+ *
  * @param attr Attributes
  */
 void early_console_set_attr(u8 attr) {
@@ -599,7 +611,7 @@ void early_console_set_attr(u8 attr) {
 
 /**
  * Set early console colors
- * 
+ *
  * @param fg Foreground color
  * @param bg Background color
  */
@@ -609,7 +621,7 @@ void early_console_set_color(u8 fg, u8 bg) {
 
 /**
  * Get early console attributes
- * 
+ *
  * @return Attributes
  */
 u8 early_console_get_attr(void) {
@@ -618,7 +630,7 @@ u8 early_console_get_attr(void) {
 
 /**
  * Get early console colors
- * 
+ *
  * @param fg Pointer to store foreground color
  * @param bg Pointer to store background color
  */
@@ -628,7 +640,7 @@ void early_console_get_color(u8 *fg, u8 *bg) {
 
 /**
  * Set early cursor position
- * 
+ *
  * @param x X position
  * @param y Y position
  */
@@ -638,7 +650,7 @@ void early_console_set_cursor(u32 x, u32 y) {
 
 /**
  * Get early cursor position
- * 
+ *
  * @param x Pointer to store X position
  * @param y Pointer to store Y position
  */
@@ -704,7 +716,7 @@ void early_console_restore_cursor(void) {
 
 /**
  * Print decimal number on early console
- * 
+ *
  * @param n Number to print
  */
 void early_console_print_dec(u32 n) {
@@ -713,7 +725,7 @@ void early_console_print_dec(u32 n) {
 
 /**
  * Print hexadecimal number on early console
- * 
+ *
  * @param n Number to print
  */
 void early_console_print_hex(u32 n) {
@@ -722,7 +734,7 @@ void early_console_print_hex(u32 n) {
 
 /**
  * Print binary number on early console
- * 
+ *
  * @param n Number to print
  */
 void early_console_print_bin(u32 n) {
@@ -731,7 +743,7 @@ void early_console_print_bin(u32 n) {
 
 /**
  * Print octal number on early console
- * 
+ *
  * @param n Number to print
  */
 void early_console_print_oct(u32 n) {

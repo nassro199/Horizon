@@ -8,6 +8,8 @@
 #define _HORIZON_MM_H
 
 #include <horizon/types.h>
+#include <horizon/mm_types.h>
+#include <horizon/interrupt.h>
 
 /* Page size */
 #define PAGE_SIZE 4096

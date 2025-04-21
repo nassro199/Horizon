@@ -55,10 +55,7 @@ typedef struct spinlock {
 
 /* Initialize a spinlock */
 #define SPIN_LOCK_INITIALIZER { RAW_SPIN_LOCK_INITIALIZER }
-#define spin_lock_init(lock) \
-    do { \
-        raw_spin_lock_init(&(lock)->raw_lock); \
-    } while (0)
+#define spin_lock_init(lock) do { raw_spin_lock_init(&(lock)->raw_lock); } while (0)
 
 /* Initialize a spinlock with a name */
 #ifdef CONFIG_DEBUG_SPINLOCK

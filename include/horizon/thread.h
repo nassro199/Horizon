@@ -10,6 +10,7 @@
 #include <horizon/types.h>
 #include <horizon/list.h>
 #include <horizon/signal.h>
+#include <horizon/thread_context.h>
 
 /* Thread flags */
 #define THREAD_KERNEL     0x00000001  /* Kernel thread */
@@ -87,6 +88,8 @@ typedef struct thread {
     /* Thread lists */
     list_head_t thread_list;        /* Thread list */
     list_head_t process_threads;    /* Process threads */
+    struct thread *next;            /* Next thread in run queue */
+    struct thread *prev;            /* Previous thread in run queue */
 
     /* Thread function */
     void *(*start_routine)(void *); /* Thread function */

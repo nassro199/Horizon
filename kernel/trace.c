@@ -4,8 +4,11 @@
  * This file contains the implementation of kernel tracing.
  */
 
+#define NULL ((void *)0)
+
 #include <horizon/kernel.h>
 #include <horizon/types.h>
+#include <horizon/stddef.h>
 #include <horizon/trace.h>
 #include <horizon/spinlock.h>
 #include <horizon/list.h>
@@ -19,7 +22,7 @@
 static LIST_HEAD(trace_points);
 
 /* Trace lock */
-static spinlock_t trace_lock = SPIN_LOCK_INITIALIZER;
+static spinlock_t trace_lock = { { 0 } };
 
 /* Trace buffer */
 static trace_buffer_t trace_buffer;
@@ -36,7 +39,16 @@ int trace_init(void) {
     int i;
 
     /* Initialize lock */
-    spin_lock_init(&trace_lock);
+    trace_lock.raw_lock.lock = 0;
+#ifdef CONFIG_DEBUG_SPINLOCK
+    trace_lock.raw_lock.name = "trace_lock";
+    trace_lock.raw_lock.file = NULL;
+    trace_lock.raw_lock.line = 0;
+    trace_lock.raw_lock.owner = 0;
+    trace_lock.raw_lock.owner_pc = 0;
+    trace_lock.raw_lock.held_count = 0;
+    trace_lock.raw_lock.contention_count = 0;
+#endif
 
     /* Initialize buffer */
     if (trace_buffer_init(&trace_buffer, 1024 * 1024) != 0) {
@@ -449,7 +461,16 @@ int trace_buffer_init(trace_buffer_t *buffer, u32 size) {
     buffer->size = size;
     buffer->head = 0;
     buffer->tail = 0;
-    spin_lock_init(&buffer->lock);
+    buffer->lock.raw_lock.lock = 0;
+#ifdef CONFIG_DEBUG_SPINLOCK
+    buffer->lock.raw_lock.name = "buffer_lock";
+    buffer->lock.raw_lock.file = NULL;
+    buffer->lock.raw_lock.line = 0;
+    buffer->lock.raw_lock.owner = 0;
+    buffer->lock.raw_lock.owner_pc = 0;
+    buffer->lock.raw_lock.held_count = 0;
+    buffer->lock.raw_lock.contention_count = 0;
+#endif
 
     return 0;
 }

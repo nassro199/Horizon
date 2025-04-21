@@ -67,19 +67,7 @@ typedef struct bus_type {
     struct bus_type *next;                           /* Next bus type */
 } bus_type_t;
 
-/* Forward declaration for device_class_enum */
-typedef enum device_class_enum device_class_enum_t;
-
-/* Device class structure */
-typedef struct device_class {
-    char name[32];                                   /* Class name */
-    device_class_enum_t type;                        /* Class type */
-    class_operations_t *ops;                         /* Class operations */
-    list_head_t devices;                             /* List of devices */
-    struct device_class *next;                       /* Next device class */
-} device_class_t;
-
-/* Rename the enum to avoid naming conflict */
+/* Device class enum */
 typedef enum device_class_enum {
     DEVICE_CLASS_CHAR,       /* Character devices */
     DEVICE_CLASS_BLOCK,      /* Block devices */
@@ -93,6 +81,15 @@ typedef enum device_class_enum {
     DEVICE_CLASS_VIRTUAL,    /* Virtual devices */
     DEVICE_CLASS_MISC        /* Miscellaneous devices */
 } device_class_enum_t;
+
+/* Device class structure */
+typedef struct device_class {
+    char name[32];                                   /* Class name */
+    device_class_enum_t type;                        /* Class type */
+    class_operations_t *ops;                         /* Class operations */
+    list_head_t devices;                             /* List of devices */
+    struct device_class *next;                       /* Next device class */
+} device_class_t;
 
 /* Device driver structure */
 typedef struct device_driver {

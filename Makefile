@@ -79,9 +79,7 @@ $(KERNEL): $(OBJS)
 iso: $(KERNEL)
 	mkdir -p iso/boot/grub
 	cp $(KERNEL) iso/boot/
-	echo "menuentry \"Horizon Kernel\" {" > iso/boot/grub/grub.cfg
-	echo "    multiboot /boot/$(KERNEL)" >> iso/boot/grub/grub.cfg
-	echo "}" >> iso/boot/grub/grub.cfg
+	cp boot/grub/grub.cfg iso/boot/grub/
 	grub-mkrescue -o $(ISO) iso
 
 # Run in QEMU

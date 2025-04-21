@@ -8,6 +8,8 @@
 #define _HORIZON_SECURITY_H
 
 #include <horizon/types.h>
+#include <horizon/fs/path.h>
+#include <horizon/fs/types.h>
 
 /* Security context structure */
 typedef struct security_context {

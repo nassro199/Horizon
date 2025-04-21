@@ -1,6 +1,6 @@
 /**
  * completion.h - Horizon kernel completion definitions
- * 
+ *
  * This file contains definitions for completions.
  */
 
@@ -9,6 +9,7 @@
 
 #include <horizon/types.h>
 #include <horizon/wait.h>
+#include <horizon/limits.h>
 
 /* Completion structure */
 typedef struct completion {

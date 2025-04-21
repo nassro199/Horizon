@@ -56,6 +56,21 @@ typedef enum {
 #define FILE_OPEN_NOFOLLOW    0x200   /* Don't follow symlinks */
 #define FILE_OPEN_CLOEXEC     0x400   /* Close on exec */
 
+/* POSIX-compatible open flags */
+#define O_RDONLY              FILE_OPEN_READ
+#define O_WRONLY              FILE_OPEN_WRITE
+#define O_RDWR                (FILE_OPEN_READ | FILE_OPEN_WRITE)
+#define O_CREAT               FILE_OPEN_CREATE
+#define O_EXCL                FILE_OPEN_EXCL
+#define O_NOCTTY              0       /* Ignored */
+#define O_TRUNC               FILE_OPEN_TRUNC
+#define O_APPEND              FILE_OPEN_APPEND
+#define O_NONBLOCK            FILE_OPEN_NONBLOCK
+#define O_SYNC                FILE_OPEN_SYNC
+#define O_DIRECTORY           FILE_OPEN_DIRECTORY
+#define O_NOFOLLOW            FILE_OPEN_NOFOLLOW
+#define O_CLOEXEC             FILE_OPEN_CLOEXEC
+
 /* Inode structure */
 typedef struct inode {
     u32 inode_num;            /* Inode number */
@@ -261,6 +276,7 @@ error_t fs_close(file_t *file);
 ssize_t fs_read(file_t *file, void *buffer, size_t size);
 ssize_t fs_write(file_t *file, const void *buffer, size_t size);
 error_t fs_seek(file_t *file, u64 offset, int whence);
+size_t fs_size(file_t *file);
 error_t fs_flush(file_t *file);
 error_t fs_fsync(file_t *file);
 int fs_ioctl(file_t *file, unsigned int cmd, unsigned long arg);
